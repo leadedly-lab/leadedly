@@ -1,9 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 
-// In dev mode, use relative URLs. In production (deployed), use the port proxy.
-const API_BASE = typeof window !== "undefined" && window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-  ? ""
-  : "__PORT_5000__";
+// Use relative URLs everywhere — frontend and backend are on the same origin.
+// Exception: Perplexity Computer preview (sites.pplx.app) uses a port proxy.
+const IS_PPLX_PREVIEW = typeof window !== "undefined" &&
+  window.location.hostname.includes("pplx.app");
+
+const API_BASE = IS_PPLX_PREVIEW ? "__PORT_5000__" : "";
 
 export async function apiRequest(
   method: string,
