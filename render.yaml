@@ -3,13 +3,12 @@ services:
     name: leadedly
     runtime: node
     region: oregon
-    plan: starter          # $7/mo — persistent disk available
-    buildCommand: npm install --include=dev && npm run build
+    plan: starter
+    buildCommand: npm ci && npm run build
     startCommand: node dist/index.cjs
     healthCheckPath: /api/industries
-    autoDeploy: true       # auto-redeploy on every GitHub push
+    autoDeploy: true
 
-    # Persistent disk — keeps leadedly.db alive across deploys
     disk:
       name: leadedly-data
       mountPath: /data
@@ -20,21 +19,17 @@ services:
         value: production
       - key: DATABASE_PATH
         value: /data/leadedly.db
-
-      # Plaid — set these after Plaid approves you
-      - key: PLAID_CLIENT_ID
-        sync: false        # set manually in Render dashboard
-      - key: PLAID_SECRET
-        sync: false
       - key: PLAID_ENV
-        value: sandbox     # change to "production" after Plaid approval
-      - key: PLAID_TRANSFER_ORIGINATION_ACCOUNT_ID
-        sync: false
-
-      # SendGrid — set after you have your API key
-      - key: SENDGRID_API_KEY
-        sync: false
+        value: sandbox
       - key: OTP_FROM_EMAIL
         value: noreply@leadedly.com
       - key: OTP_FROM_NAME
         value: Leadedly
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      - key: PLAID_TRANSFER_ORIGINATION_ACCOUNT_ID
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
