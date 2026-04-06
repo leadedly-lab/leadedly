@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Leadedly Design System ────────────────────────────────────────────────── */
+/* Premium Navy + Electric Blue + Midnight palette — fintech precision */
+
+@layer base {
+  :root {
+    /* shadcn/ui required variables */
+    --background: 222 47% 11%;
+    --foreground: 213 31% 91%;
+    --card: 222 47% 13%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 222 47% 18%;
+    --secondary-foreground: 213 31% 85%;
+    --muted: 222 47% 17%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 222 47% 5%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 222 30% 22%;
+    --input: 222 47% 16%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 224 55% 8%;
+    --sidebar-foreground: 213 31% 85%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 5%;
+    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent-foreground: 213 31% 91%;
+    --sidebar-border: 222 30% 18%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  .light {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 20% 45%;
+    --accent: 217 91% 50%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 88%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 50%;
+
+    --sidebar-background: 222 47% 10%;
+    --sidebar-foreground: 213 31% 85%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 5%;
+    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent-foreground: 213 31% 91%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  html, body {
+    height: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'General Sans', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cabinet Grotesk', 'Inter', system-ui, sans-serif;
+    text-wrap: balance;
+    line-height: 1.2;
+  }
+  /* tabular nums for all data */
+  .tabular { font-variant-numeric: tabular-nums lining-nums; }
+}
+
+/* ─── Elevation System ──────────────────────────────────────────────────────── */
+@layer utilities {
+  .hover-elevate {
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hover-elevate:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px hsl(217 91% 60% / 0.15);
+  }
+  .active-elevate-2:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+  .toggle-elevate { transition: box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .toggle-elevated { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+  .no-default-active-elevate:active { transform: none; box-shadow: none; }
+}
+
+/* ─── Shimmer / Skeleton ────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--secondary)) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
+
+/* ─── OOC Timer Badge pulse ─────────────────────────────────────────────────── */
+@keyframes pulse-ooc {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.ooc-pulse { animation: pulse-ooc 2s ease-in-out infinite; }
+
+/* ─── Onboarding step card ──────────────────────────────────────────────────── */
+.onboarding-card {
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.08) 0%, hsl(224 55% 8% / 0.95) 100%);
+  border: 1px solid hsl(217 91% 60% / 0.2);
+}
+.onboarding-card:hover {
+  border-color: hsl(217 91% 60% / 0.6);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.15) 0%, hsl(224 55% 8%) 100%);
+}
+.onboarding-card.selected {
+  border-color: hsl(217 91% 60%);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.25) 0%, hsl(224 55% 8%) 100%);
+  box-shadow: 0 0 0 1px hsl(217 91% 60%), 0 4px 24px hsl(217 91% 60% / 0.2);
+}
+
+/* ─── Progress slide indicator ─────────────────────────────────────────────── */
+.slide-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--border));
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: hsl(var(--primary));
+}
+
+/* ─── Stat card glow ────────────────────────────────────────────────────────── */
+.stat-card-blue { box-shadow: 0 0 0 1px hsl(217 91% 60% / 0.15), inset 0 1px 0 hsl(217 91% 60% / 0.1); }
+.stat-card-green { box-shadow: 0 0 0 1px hsl(142 76% 36% / 0.15), inset 0 1px 0 hsl(142 76% 36% / 0.1); }
+.stat-card-red { box-shadow: 0 0 0 1px hsl(0 72% 51% / 0.15), inset 0 1px 0 hsl(0 72% 51% / 0.1); }
+.stat-card-gold { box-shadow: 0 0 0 1px hsl(38 92% 50% / 0.15), inset 0 1px 0 hsl(38 92% 50% / 0.1); }
+
+/* ─── Table row hover ───────────────────────────────────────────────────────── */
+tr.hoverable:hover td {
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* ─── Scrollbars ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
