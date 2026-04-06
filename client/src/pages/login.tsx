@@ -8,8 +8,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight, Shield, Users, DollarSign, ShieldCheck, Mail, RefreshCw, ExternalLink } from "lucide-react";
 import { LeadedlyLogo } from "@/components/logo";
+import EmailVerification from "@/pages/email-verification";
 
-type LoginStep = "credentials" | "admin_mfa" | "client_otp";
+type LoginStep = "credentials" | "admin_mfa" | "client_otp" | "email_verification";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -45,13 +46,18 @@ export default function LoginPage() {
       if (data.error) throw new Error(data.error);
 
       if (data.mfaRequired) {
-        // Admin: needs TOTP
         setPendingAdminId(data.adminId);
         setStep("admin_mfa");
         return;
       }
+      if (data.verificationRequired) {
+        // Email not verified — show verification screen
+        setPendingClientId(data.clientId);
+        setPendingEmail(data.email);
+        setStep("email_verification");
+        return;
+      }
       if (data.otpRequired) {
-        // Client: needs email OTP
         setPendingClientId(data.clientId);
         setPendingEmail(data.email);
         setStep("client_otp");
@@ -175,6 +181,19 @@ export default function LoginPage() {
         </div>
     </div>
   );
+
+  // Email verification step — full-page takeover (reuses EmailVerification component)
+  if (step === "email_verification" && pendingClientId) {
+    return (
+      <EmailVerification
+        clientId={pendingClientId}
+        email={pendingEmail}
+        mode="login"
+        onVerified={(data) => setAuth(data)}
+        onBack={() => { setStep("credentials"); setPendingClientId(null); }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">

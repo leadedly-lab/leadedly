@@ -33,6 +33,8 @@ export const clients = sqliteTable("clients", {
   // Auth
   passwordHash: text("password_hash").notNull().default("demo123"),
   role: text("role").notNull().default("client"), // client | admin
+  // Email verification on signup
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
   // Email OTP MFA
   otpCode: text("otp_code"),           // 6-digit code (hashed)
   otpExpiresAt: integer("otp_expires_at"), // unix ms expiry

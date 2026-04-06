@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import * as speakeasy from "speakeasy";
 import * as QRCode from "qrcode";
-import { generateOtp, sendOtpEmail } from "./email";
+import { generateOtp, sendOtpEmail, sendVerificationEmail } from "./email";
 import { storage, sqlite } from "./storage";
 import {
   createLinkToken,
@@ -89,13 +89,25 @@ export function registerRoutes(httpServer: Server, app: Express) {
     // Check client — always require email OTP before granting access
     const client = storage.getClientByEmail(email);
     if (client && client.passwordHash === password) {
+      // Block login if email not verified yet — re-send verification code
+      if (!client.emailVerified) {
+        const code = generateOtp();
+        const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+        storage.setClientOtp(client.id, code, expiresAt);
+        try {
+          await sendVerificationEmail(client.email, client.firstName, code);
+        } catch (e: any) {
+          console.error('[VERIFY] Resend failed:', e?.message);
+        }
+        return res.json({ verificationRequired: true, clientId: client.id, email: client.email });
+      }
+      // Email verified — proceed with login OTP
       const otp = generateOtp();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
       storage.setClientOtp(client.id, otp, expiresAt);
       try {
         await sendOtpEmail(client.email, client.firstName, otp);
       } catch (e: any) {
-        // Dev/unconfigured: OTP is logged to console, flow continues
         console.error('[OTP] Email send failed (check console for dev code):', e?.message);
       }
       return res.json({ otpRequired: true, clientId: client.id, email: client.email });
@@ -223,6 +235,52 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json({ ok: true });
   });
 
+
+  // POST /api/auth/verify-email — verify 6-digit code sent after signup
+  app.post('/api/auth/verify-email', (req, res) => {
+    const { clientId, code } = req.body;
+    const client = storage.getClient(Number(clientId));
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (client.emailVerified) return res.json({ role: 'client', user: client });
+    if (client.otpAttempts >= 5) {
+      storage.clearClientOtp(client.id);
+      return res.status(429).json({ error: 'Too many attempts. Please request a new code.' });
+    }
+    if (!client.otpCode || !client.otpExpiresAt) {
+      return res.status(400).json({ error: 'No active verification code. Please request a new one.' });
+    }
+    if (Date.now() > client.otpExpiresAt) {
+      storage.clearClientOtp(client.id);
+      return res.status(400).json({ error: 'Code expired. Please request a new one.' });
+    }
+    if (client.otpCode !== code.trim()) {
+      const attempts = storage.incrementOtpAttempts(client.id);
+      const remaining = 5 - attempts;
+      return res.status(401).json({ error: `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` });
+    }
+    storage.setClientEmailVerified(client.id);
+    storage.setClientOtpVerified(client.id, true);
+    sqlite.prepare('UPDATE clients SET otp_code=NULL, otp_expires_at=NULL, otp_attempts=0 WHERE id=?').run(client.id);
+    return res.json({ role: 'client', user: storage.getClient(client.id) });
+  });
+
+  // POST /api/auth/verify-email-resend — resend verification code
+  app.post('/api/auth/verify-email-resend', async (req, res) => {
+    const { clientId } = req.body;
+    const client = storage.getClient(Number(clientId));
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (client.emailVerified) return res.json({ ok: true, alreadyVerified: true });
+    const code = generateOtp();
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    storage.setClientOtp(client.id, code, expiresAt);
+    try {
+      await sendVerificationEmail(client.email, client.firstName, code);
+    } catch (e: any) {
+      console.error('[VERIFY] Resend failed:', e?.message);
+    }
+    res.json({ ok: true });
+  });
+
   // ─── Industries ─────────────────────────────────────────────────────────────
   app.get("/api/industries", (_req, res) => {
     res.json(storage.getIndustries());
@@ -254,13 +312,22 @@ export function registerRoutes(httpServer: Server, app: Express) {
     if (!c) return res.status(404).json({ error: "Not found" });
     res.json(c);
   });
-  app.post("/api/clients", (req, res) => {
+  app.post("/api/clients", async (req, res) => {
     try {
       // Check if email already exists
       const existing = storage.getClientByEmail(req.body.email);
       if (existing) return res.status(409).json({ error: "Email already registered" });
       const client = storage.createClient({ ...req.body, passwordHash: req.body.password || "demo123" });
-      res.json(client);
+      // Send email verification code immediately after account creation
+      const code = generateOtp();
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+      storage.setClientOtp(client.id, code, expiresAt);
+      try {
+        await sendVerificationEmail(client.email, client.firstName, code);
+      } catch (e: any) {
+        console.error('[VERIFY] Send failed on signup:', e?.message);
+      }
+      res.json({ ...client, verificationSent: true });
     } catch (e) {
       res.status(400).json({ error: String(e) });
     }

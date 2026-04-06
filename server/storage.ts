@@ -46,6 +46,7 @@ sqlite.exec(`
     created_at INTEGER NOT NULL,
     password_hash TEXT NOT NULL DEFAULT 'demo123',
     role TEXT NOT NULL DEFAULT 'client',
+    email_verified INTEGER NOT NULL DEFAULT 0,
     otp_code TEXT,
     otp_expires_at INTEGER,
     otp_verified INTEGER NOT NULL DEFAULT 0,
@@ -140,6 +141,7 @@ for (const col of [
   "ALTER TABLE admin_users ADD COLUMN totp_secret TEXT",
   "ALTER TABLE admin_users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE admin_users ADD COLUMN backup_codes TEXT",
+  "ALTER TABLE clients ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE clients ADD COLUMN otp_code TEXT",
   "ALTER TABLE clients ADD COLUMN otp_expires_at INTEGER",
   "ALTER TABLE clients ADD COLUMN otp_verified INTEGER NOT NULL DEFAULT 0",
@@ -208,6 +210,9 @@ export interface IStorage {
   getDepositTransactionsByClient(clientId: number): DepositTransaction[];
   getDepositTransactionsByTerritory(territoryId: number): DepositTransaction[];
   createDepositTransaction(data: InsertDepositTransaction): DepositTransaction;
+
+  // Client email verification
+  setClientEmailVerified(clientId: number): void;
 
   // Client OTP
   setClientOtp(clientId: number, otpCode: string, expiresAt: number): void;
@@ -314,6 +319,10 @@ export class SQLiteStorage implements IStorage {
   createDepositTransaction(data: InsertDepositTransaction) {
     const now = Date.now();
     return db.insert(depositTransactions).values({ ...data, createdAt: now }).returning().get();
+  }
+
+  setClientEmailVerified(clientId: number) {
+    sqlite.prepare("UPDATE clients SET email_verified=1 WHERE id=?").run(clientId);
   }
 
   setClientOtp(clientId: number, otpCode: string, expiresAt: number) {
