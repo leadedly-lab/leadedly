@@ -31,7 +31,7 @@ export async function createLinkToken(clientId: number, clientName: string) {
   const request: LinkTokenCreateRequest = {
     user: { client_user_id: String(clientId) },
     client_name: "Leadedly",
-    products: [Products.Auth, Products.Transfer],
+    products: [Products.Auth],
     country_codes: [CountryCode.Us],
     language: "en",
     // Pre-configure for ACH bank accounts only
