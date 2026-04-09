@@ -12,6 +12,7 @@ import OnboardingPage from "@/pages/onboarding";
 import DashboardLayout from "@/pages/dashboard-layout";
 import AdminLayout from "@/pages/admin-layout";
 import PrivacyPolicy from "@/pages/privacy-policy";
+import TermsOfService from "@/pages/terms-of-service";
 import EmailVerification from "@/pages/email-verification";
 import NotFound from "@/pages/not-found";
 
@@ -24,6 +25,7 @@ function AppContent() {
         <Switch>
           <Route path="/onboard" component={OnboardingPage} />
           <Route path="/privacy" component={PrivacyPolicy} />
+          <Route path="/terms" component={TermsOfService} />
           <Route component={LoginPage} />
         </Switch>
       </Router>
@@ -37,6 +39,7 @@ function AppContent() {
           <Router hook={useHashLocation}>
             <Switch>
               <Route path="/privacy" component={PrivacyPolicy} />
+              <Route path="/terms" component={TermsOfService} />
               <Route component={AdminLayout} />
             </Switch>
           </Router>
@@ -73,6 +76,7 @@ function AppContent() {
         <Router hook={useHashLocation}>
           <Switch>
             <Route path="/privacy" component={PrivacyPolicy} />
+            <Route path="/terms" component={TermsOfService} />
             <Route component={DashboardLayout} />
           </Switch>
         </Router>

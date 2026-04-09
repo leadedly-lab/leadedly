@@ -72,6 +72,7 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
 
   const [step, setStep] = useState<Step>("industry");
   const [slideIndex, setSlideIndex] = useState(0);
+  const [tosAgreed, setTosAgreed] = useState(false);
 
   const [form, setForm] = useState({
     industryId: existingClient?.industryId || 0,
@@ -115,6 +116,7 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
         password: form.password || "demo123",
         passwordHash: form.password || "demo123",
         role: "client",
+        tosAgreedAt: Date.now(),
       };
 
       let client;
@@ -383,9 +385,25 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
                   <Input data-testid="input-password" type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
                 </div>
               </div>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={tosAgreed}
+                  onChange={e => setTosAgreed(e.target.checked)}
+                  className="mt-0.5 rounded border-border"
+                  data-testid="checkbox-tos"
+                />
+                <span className="text-sm text-muted-foreground leading-relaxed">
+                  I agree to the{" "}
+                  <a href="#/terms" target="_blank" rel="noopener" className="text-primary hover:underline font-medium">Terms of Service</a>
+                  {" "}and{" "}
+                  <a href="#/privacy" target="_blank" rel="noopener" className="text-primary hover:underline font-medium">Privacy Policy</a>,
+                  including the deposit structure, fee schedule, 1-hour contact requirement, and dispute procedures.
+                </span>
+              </label>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={back}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
-                <Button onClick={() => next()} disabled={!form.email.trim()}>Continue <ArrowRight className="w-4 h-4 ml-1" /></Button>
+                <Button onClick={() => next()} disabled={!form.email.trim() || !tosAgreed}>Continue <ArrowRight className="w-4 h-4 ml-1" /></Button>
               </div>
             </div>
           )}

@@ -42,6 +42,8 @@ export const clients = sqliteTable("clients", {
   otpAttempts: integer("otp_attempts").notNull().default(0), // failed attempt counter
   // Google Sheets integration
   googleSheetUrl: text("google_sheet_url"),
+  // TOS
+  tosAgreedAt: integer("tos_agreed_at"),
 });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
