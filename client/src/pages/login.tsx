@@ -235,11 +235,7 @@ export default function LoginPage() {
                   </button>
                 </p>
               </div>
-              <div className="mt-6 p-3 rounded-lg bg-muted/50 border border-border">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Demo credentials</p>
-                <p className="text-xs text-muted-foreground">Admin: admin@leadedly.com / admin123</p>
-                <p className="text-xs text-muted-foreground">Client: complete onboarding first</p>
-              </div>
+
             </>
           )}
 
