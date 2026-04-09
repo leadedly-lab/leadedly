@@ -125,8 +125,8 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                       <MapPin className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">{t.city}</p>
-                      <p className="text-xs text-muted-foreground">{t.state}</p>
+                      <p className="font-semibold text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : t.city}</p>
+                      {t.city !== "Statewide" && <p className="text-xs text-muted-foreground">{t.state}</p>}
                     </div>
                   </div>
                   <Badge variant={t.active ? "default" : "secondary"} className="text-xs">

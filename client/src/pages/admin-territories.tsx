@@ -26,7 +26,7 @@ export default function AdminTerritories() {
   const [addOpen, setAddOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
-  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500" });
+  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500", entireState: false });
 
   const { data: territories = [], isLoading } = useQuery<Territory[]>({ queryKey: ["/api/territories"] });
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
@@ -64,7 +64,7 @@ export default function AdminTerritories() {
         clientId: Number(data.clientId),
         industryId: Number(data.industryId),
         state: data.state,
-        city: data.city,
+        city: data.entireState ? "Statewide" : data.city,
         depositAmount: Number(data.depositAmount),
         depositBalance: 0,
       });
@@ -73,7 +73,7 @@ export default function AdminTerritories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
       setAddOpen(false);
-      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500" });
+      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500", entireState: false });
       toast({ title: "Territory created", description: "The client can now deposit funds via their Bank Account page." });
     },
   });
@@ -114,7 +114,7 @@ export default function AdminTerritories() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                      <span className="font-medium text-foreground">{t.city}, {t.state}</span>
+                      <span className="font-medium text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</span>
                     </div>
                     <Badge variant={t.active ? "default" : "secondary"} className="text-xs mt-0.5">{t.active ? "Active" : "Paused"}</Badge>
                   </td>
@@ -155,7 +155,7 @@ export default function AdminTerritories() {
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Territory: <span className="font-medium text-foreground">{depositOpen.city}, {depositOpen.state}</span><br />
+                Territory: <span className="font-medium text-foreground">{depositOpen.city === "Statewide" ? `${depositOpen.state} — Entire State` : `${depositOpen.city}, ${depositOpen.state}`}</span><br />
                 Current balance: <span className="font-bold text-primary tabular">${depositOpen.depositBalance.toFixed(2)}</span>
               </p>
               <div className="space-y-1.5">
@@ -222,13 +222,26 @@ export default function AdminTerritories() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>City</Label>
-              <Input
-                placeholder="e.g. Austin"
-                value={newTerritory.city}
-                onChange={e => setNewTerritory(f => ({ ...f, city: e.target.value }))}
-              />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newTerritory.entireState}
+                  onChange={e => setNewTerritory(f => ({ ...f, entireState: e.target.checked, city: e.target.checked ? "" : f.city }))}
+                  className="rounded border-border"
+                />
+                <span className="text-sm font-medium text-foreground">Entire State Territory</span>
+              </label>
             </div>
+            {!newTerritory.entireState && (
+              <div className="space-y-1.5">
+                <Label>City</Label>
+                <Input
+                  placeholder="e.g. Austin"
+                  value={newTerritory.city}
+                  onChange={e => setNewTerritory(f => ({ ...f, city: e.target.value }))}
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Deposit Amount ($)</Label>
               <Input
@@ -243,7 +256,7 @@ export default function AdminTerritories() {
             <Button
               className="w-full"
               onClick={() => createMutation.mutate(newTerritory)}
-              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || !newTerritory.city.trim() || !newTerritory.depositAmount || createMutation.isPending}
+              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.city.trim()) || !newTerritory.depositAmount || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating…" : "Create Territory"}
             </Button>
@@ -259,7 +272,7 @@ export default function AdminTerritories() {
               <DialogTitle className="font-display">Update Monthly Stats</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">{statsOpen.city}, {statsOpen.state}</p>
+              <p className="text-xs text-muted-foreground">{statsOpen.city === "Statewide" ? `${statsOpen.state} — Entire State` : `${statsOpen.city}, ${statsOpen.state}`}</p>
               <div className="space-y-1">
                 <Label className="text-xs">Monthly Ad Spend ($)</Label>
                 <Input type="number" value={statsForm.monthlyAdSpend} onChange={e => setStatsForm(f => ({ ...f, monthlyAdSpend: e.target.value }))} />

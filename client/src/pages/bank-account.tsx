@@ -266,7 +266,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                   <AlertTriangle className="w-4 h-4 text-red-400" />
                   <AlertDescription className="text-sm text-red-300">
                     {lowBalanceTerritories.length} territory{lowBalanceTerritories.length > 1 ? "ies are" : " is"} below $400:{" "}
-                    {lowBalanceTerritories.map(t => `${t.city}, ${t.state}`).join("; ")}.
+                    {lowBalanceTerritories.map(t => t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`).join("; ")}.
                     {plaidStatus.item.autoReplenishEnabled
                       ? " Auto-replenish will trigger automatically."
                       : " Enable auto-replenish below to fund automatically."}
@@ -437,7 +437,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                 <SelectContent>
                   {territories.map(t => (
                     <SelectItem key={t.id} value={String(t.id)}>
-                      {t.city}, {t.state}
+                      {t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}
                       {t.depositBalance < 400 && " ⚠️ Low Balance"}
                     </SelectItem>
                   ))}

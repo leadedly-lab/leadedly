@@ -77,7 +77,7 @@ export default function DepositManager({ clientId }: { clientId: number }) {
               {territories.map(t => (
                 <div key={t.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                   <div>
-                    <p className="font-medium text-foreground">{t.city}, {t.state}</p>
+                    <p className="font-medium text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Initial deposit: ${t.depositAmount.toFixed(0)}</p>
                   </div>
                   <div className="text-right">

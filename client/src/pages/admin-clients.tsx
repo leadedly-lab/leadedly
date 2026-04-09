@@ -226,7 +226,7 @@ export default function AdminClients() {
                       <SelectTrigger><SelectValue placeholder="Select territory…" /></SelectTrigger>
                       <SelectContent>
                         {territories.filter(t => t.clientId === importOpen.id).map(t => (
-                          <SelectItem key={t.id} value={String(t.id)}>{t.city}, {t.state}</SelectItem>
+                          <SelectItem key={t.id} value={String(t.id)}>{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -324,7 +324,7 @@ export default function AdminClients() {
                 <SelectTrigger><SelectValue placeholder="Select territory…" /></SelectTrigger>
                 <SelectContent>
                   {territories.filter((t: any) => !selectedClientId || t.clientId === selectedClientId).map((t: any) => (
-                    <SelectItem key={t.id} value={String(t.id)}>{t.city}, {t.state}</SelectItem>
+                    <SelectItem key={t.id} value={String(t.id)}>{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

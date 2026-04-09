@@ -76,7 +76,7 @@ export default function AdminDeposits() {
                     {client ? `${client.firstName} ${client.lastName}` : "—"}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">
-                    {territory ? `${territory.city}, ${territory.state}` : "—"}
+                    {territory ? (territory.city === "Statewide" ? `${territory.state} — Entire State` : `${territory.city}, ${territory.state}`) : "—"}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">{tx.description}</td>
                   <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">
