@@ -31,5 +31,5 @@ services:
         sync: false
       - key: PLAID_TRANSFER_ORIGINATION_ACCOUNT_ID
         sync: false
-      - key: SENDGRID_API_KEY
+      - key: RESEND_API_KEY
         sync: false

@@ -1,15 +1,13 @@
-import sgMail from "@sendgrid/mail";
+import { Resend } from "resend";
 
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
-const FROM_EMAIL = process.env.OTP_FROM_EMAIL || "noreply@leadedly.com";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const FROM_EMAIL = process.env.OTP_FROM_EMAIL || "onboarding@resend.dev";
 const FROM_NAME = process.env.OTP_FROM_NAME || "Leadedly";
 
 export const isEmailConfigured =
-  SENDGRID_API_KEY !== "" && SENDGRID_API_KEY !== "your_sendgrid_api_key";
+  RESEND_API_KEY !== "" && RESEND_API_KEY !== "your_resend_api_key";
 
-if (isEmailConfigured) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-}
+const resend = isEmailConfigured ? new Resend(RESEND_API_KEY) : null;
 
 // ─── Generate a 6-digit OTP ────────────────────────────────────────────────
 export function generateOtp(): string {
@@ -18,14 +16,14 @@ export function generateOtp(): string {
 
 // ─── Send Email Verification code ───────────────────────────────────────────
 export async function sendVerificationEmail(toEmail: string, firstName: string, code: string): Promise<void> {
-  if (!isEmailConfigured) {
+  if (!isEmailConfigured || !resend) {
     console.log(`[VERIFY DEV] Verification code for ${toEmail}: ${code}`);
     return;
   }
 
-  const msg = {
+  await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: toEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Welcome to Leadedly — verify your email`,
     text: `Hi ${firstName},\n\nWelcome to Leadedly! Please verify your email address using the code below:\n\n${code}\n\nThis code expires in 24 hours.\n\n— The Leadedly Team`,
     html: `
@@ -64,22 +62,20 @@ export async function sendVerificationEmail(toEmail: string, firstName: string, 
   </table>
 </body>
 </html>`,
-  };
-
-  await sgMail.send(msg);
+  });
 }
 
-// ─── Send OTP email via SendGrid ───────────────────────────────────────────
+// ─── Send OTP email via Resend ───────────────────────────────────────────
 export async function sendOtpEmail(toEmail: string, firstName: string, otp: string): Promise<void> {
-  if (!isEmailConfigured) {
+  if (!isEmailConfigured || !resend) {
     // Dev mode: log to console instead of sending
     console.log(`[OTP DEV] Code for ${toEmail}: ${otp}`);
     return;
   }
 
-  const msg = {
+  await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: toEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Your Leadedly verification code: ${otp}`,
     text: `Hi ${firstName},\n\nYour verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.\n\nIf you didn't request this code, please ignore this email.\n\n— The Leadedly Team`,
     html: `
@@ -130,7 +126,5 @@ export async function sendOtpEmail(toEmail: string, firstName: string, otp: stri
   </table>
 </body>
 </html>`,
-  };
-
-  await sgMail.send(msg);
+  });
 }
