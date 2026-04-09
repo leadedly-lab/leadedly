@@ -14,8 +14,9 @@ import {
 } from "./plaid";
 
 const OOC_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const OOC_FEE = 40;
+const OOC_FEE = 25;
 const LOW_BALANCE_THRESHOLD = 400;
+const OOC_CHECK_INTERVAL_MS = 5 * 60 * 1000; // check every 5 minutes
 
 // ─── Auto-Replenish Helper ──────────────────────────────────────────────────
 // Called server-side whenever a fee is deducted from a territory balance.
@@ -73,6 +74,55 @@ function generateBackupCodes(): string[] {
     Math.random().toString(36).substring(2, 6).toUpperCase()
   );
 }
+
+// ─── OOC Sweep ──────────────────────────────────────────────────────────────
+// Scans ALL leads with status "new" that are older than 1 hour and charges $25
+async function sweepOocLeads() {
+  const now = Date.now();
+  const allLeads = storage.getLeads();
+  let charged = 0;
+  for (const lead of allLeads) {
+    if (
+      lead.status === "new" &&
+      !lead.oocFeeCharged &&
+      now - lead.receivedAt > OOC_WINDOW_MS
+    ) {
+      storage.updateLead(lead.id, {
+        oocFeeCharged: true,
+        oocFeeAmount: OOC_FEE,
+        status: "ooc",
+      });
+      const territory = storage.getTerritory(lead.territoryId);
+      if (territory) {
+        const newBalance = territory.depositBalance - OOC_FEE;
+        storage.updateTerritory(territory.id, { depositBalance: newBalance });
+        storage.createDepositTransaction({
+          territoryId: territory.id,
+          clientId: lead.clientId,
+          type: "ooc_fee",
+          amount: -OOC_FEE,
+          description: `OOC Fee — ${lead.firstName} ${lead.lastName} not contacted within 1 hour`,
+          leadId: lead.id,
+        });
+        checkAndAutoReplenish(territory.id, lead.clientId).catch(() => {});
+      }
+      charged++;
+    }
+  }
+  if (charged > 0) {
+    console.log(`[OOC Sweep] Charged $${OOC_FEE} OOC fee on ${charged} lead(s)`);
+  }
+}
+
+// Start background OOC sweep every 5 minutes
+setInterval(() => {
+  sweepOocLeads().catch(e => console.error("[OOC Sweep] Error:", e.message));
+}, OOC_CHECK_INTERVAL_MS);
+
+// Run once on startup (after a short delay to let the DB settle)
+setTimeout(() => {
+  sweepOocLeads().catch(e => console.error("[OOC Sweep] Startup error:", e.message));
+}, 10_000);
 
 export function registerRoutes(httpServer: Server, app: Express) {
   // ─── Auth ───────────────────────────────────────────────────────────────────
