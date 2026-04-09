@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Edit2, Search, Plus } from "lucide-react";
-import type { Client, Industry } from "@shared/schema";
+import { Users, Edit2, Search, Plus, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import type { Client, Industry, Territory } from "@shared/schema";
 
 export default function AdminClients() {
   const { toast } = useToast();
@@ -18,10 +18,13 @@ export default function AdminClients() {
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState<Client | null>(null);
+  const [importTerritoryId, setImportTerritoryId] = useState("");
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; total: number; errors: string[] } | null>(null);
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
-  const { data: territories = [] } = useQuery<any[]>({ queryKey: ["/api/territories"] });
+  const { data: territories = [] } = useQuery<Territory[]>({ queryKey: ["/api/territories"] });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -44,6 +47,20 @@ export default function AdminClients() {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setAddLeadOpen(false);
       toast({ title: "Lead added successfully" });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async ({ clientId, territoryId }: { clientId: number; territoryId: number }) => {
+      const res = await apiRequest("POST", `/api/leads/import/${clientId}`, { territoryId });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setImportResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+    },
+    onError: (e: any) => {
+      toast({ title: "Import failed", description: e?.message || "Unknown error", variant: "destructive" });
     },
   });
 
@@ -109,6 +126,11 @@ export default function AdminClients() {
                     <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setSelectedClientId(c.id); setAddLeadOpen(true); }} data-testid={`button-add-lead-${c.id}`}>
                       <Plus className="w-3 h-3 mr-1" /> Add Lead
                     </Button>
+                    {c.googleSheetUrl && (
+                      <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setImportOpen(c); setImportTerritoryId(""); setImportResult(null); }} data-testid={`button-import-leads-${c.id}`}>
+                        <FileSpreadsheet className="w-3 h-3 mr-1" /> Import
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -163,9 +185,99 @@ export default function AdminClients() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Google Sheet URL</Label>
+                <Input
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  value={editClient.googleSheetUrl || ""}
+                  onChange={e => setEditClient(c => c && ({ ...c, googleSheetUrl: e.target.value || null }))}
+                />
+                <p className="text-xs text-muted-foreground">Paste the Google Sheets link for this client's Facebook lead forms. The sheet must be shared as "Anyone with the link".</p>
+              </div>
               <Button className="w-full" onClick={() => updateMutation.mutate({ id: editClient.id, data: editClient })} disabled={updateMutation.isPending}>
                 Save Changes
               </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Import Leads Dialog */}
+      <Dialog open={!!importOpen} onOpenChange={() => setImportOpen(null)}>
+        {importOpen && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-green-500" />
+                Import Leads from Google Sheets
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                <p className="text-xs text-muted-foreground">Client: <span className="font-medium text-foreground">{importOpen.firstName} {importOpen.lastName}</span></p>
+                <p className="text-xs text-muted-foreground mt-1 truncate">Sheet: <a href={importOpen.googleSheetUrl || ""} target="_blank" rel="noopener" className="text-primary hover:underline">{importOpen.googleSheetUrl}</a></p>
+              </div>
+
+              {!importResult ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Assign to Territory</Label>
+                    <Select value={importTerritoryId} onValueChange={setImportTerritoryId}>
+                      <SelectTrigger><SelectValue placeholder="Select territory…" /></SelectTrigger>
+                      <SelectContent>
+                        {territories.filter(t => t.clientId === importOpen.id).map(t => (
+                          <SelectItem key={t.id} value={String(t.id)}>{t.city}, {t.state}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">All imported leads will be assigned to this territory.</p>
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={() => importMutation.mutate({ clientId: importOpen.id, territoryId: Number(importTerritoryId) })}
+                    disabled={!importTerritoryId || importMutation.isPending}
+                  >
+                    {importMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importing…</>
+                    ) : "Import Leads"}
+                  </Button>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <span className="font-semibold text-foreground">Import Complete</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-center mt-3">
+                      <div>
+                        <p className="text-2xl font-bold text-green-400">{importResult.imported}</p>
+                        <p className="text-xs text-muted-foreground">Imported</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-yellow-400">{importResult.skipped}</p>
+                        <p className="text-xs text-muted-foreground">Skipped</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-muted-foreground">{importResult.total}</p>
+                        <p className="text-xs text-muted-foreground">Total Rows</p>
+                      </div>
+                    </div>
+                  </div>
+                  {importResult.errors.length > 0 && (
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertCircle className="w-4 h-4 text-red-400" />
+                        <span className="text-xs font-medium text-red-400">Errors</span>
+                      </div>
+                      {importResult.errors.map((e, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                  <Button variant="outline" className="w-full" onClick={() => setImportOpen(null)}>Done</Button>
+                </div>
+              )}
             </div>
           </DialogContent>
         )}

@@ -146,6 +146,7 @@ for (const col of [
   "ALTER TABLE clients ADD COLUMN otp_expires_at INTEGER",
   "ALTER TABLE clients ADD COLUMN otp_verified INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE clients ADD COLUMN otp_attempts INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE clients ADD COLUMN google_sheet_url TEXT",
 ]) {
   try { sqlite.exec(col); } catch (_) { /* column already exists */ }
 }

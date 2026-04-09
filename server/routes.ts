@@ -435,6 +435,129 @@ export function registerRoutes(httpServer: Server, app: Express) {
       res.status(400).json({ error: String(e) });
     }
   });
+  // ─── Import leads from Google Sheets (published CSV) ─────────────────────
+  app.post("/api/leads/import/:clientId", async (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const { territoryId } = req.body;
+    const client = storage.getClient(clientId);
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    if (!client.googleSheetUrl) return res.status(400).json({ error: "No Google Sheet URL configured for this client" });
+    if (!territoryId) return res.status(400).json({ error: "Territory ID is required" });
+
+    // Convert Google Sheets URL to published CSV export URL
+    let csvUrl = client.googleSheetUrl;
+    const sheetMatch = csvUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (sheetMatch) {
+      const sheetId = sheetMatch[1];
+      // Extract gid if present, default to 0
+      const gidMatch = csvUrl.match(/gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : "0";
+      csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    }
+
+    try {
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        return res.status(400).json({ error: `Failed to fetch sheet (${response.status}). Make sure the sheet is published to the web or shared as "Anyone with the link".` });
+      }
+      const csvText = await response.text();
+      const lines = csvText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 2) return res.status(400).json({ error: "Sheet is empty or has no data rows" });
+
+      // Parse header row — normalize to lowercase and strip whitespace
+      const parseRow = (line: string): string[] => {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+            else { inQuotes = !inQuotes; }
+          } else if (ch === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, "_"));
+
+      // Map common header variations to lead fields
+      const findCol = (names: string[]) => headers.findIndex(h => names.some(n => h.includes(n)));
+      const colMap = {
+        firstName: findCol(["first_name", "firstname", "first"]),
+        lastName: findCol(["last_name", "lastname", "last", "surname"]),
+        fullName: findCol(["full_name", "fullname", "name"]),
+        email: findCol(["email", "e_mail", "email_address"]),
+        phone: findCol(["phone", "phone_number", "telephone", "mobile", "cell"]),
+        city: findCol(["city", "town"]),
+        investableAssets: findCol(["investable", "assets", "net_worth", "aum"]),
+      };
+
+      if (colMap.email === -1) {
+        return res.status(400).json({ error: "Could not find an 'email' column in the sheet. Make sure the header row contains an Email column." });
+      }
+
+      // Get existing lead emails for this client to skip duplicates
+      const existingLeads = storage.getLeadsByClient(clientId);
+      const existingEmails = new Set(existingLeads.map(l => l.email.toLowerCase()));
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseRow(lines[i]);
+        const email = (cols[colMap.email] || "").replace(/^"|"$/g, "").trim().toLowerCase();
+        if (!email || !email.includes("@")) { skipped++; continue; }
+        if (existingEmails.has(email)) { skipped++; continue; }
+
+        let firstName = colMap.firstName >= 0 ? cols[colMap.firstName] || "" : "";
+        let lastName = colMap.lastName >= 0 ? cols[colMap.lastName] || "" : "";
+
+        // Fall back to full_name column and split
+        if (!firstName && colMap.fullName >= 0) {
+          const full = (cols[colMap.fullName] || "").trim();
+          const parts = full.split(/\s+/);
+          firstName = parts[0] || "";
+          lastName = parts.slice(1).join(" ") || "";
+        }
+
+        const phone = colMap.phone >= 0 ? (cols[colMap.phone] || "").trim() : "";
+        const city = colMap.city >= 0 ? (cols[colMap.city] || "").trim() : "";
+        const investableAssets = colMap.investableAssets >= 0 ? (cols[colMap.investableAssets] || "").trim() : "";
+
+        try {
+          storage.createLead({
+            clientId,
+            territoryId: Number(territoryId),
+            firstName: firstName || "Unknown",
+            lastName: lastName || "",
+            email,
+            phone,
+            city,
+            investableAssets,
+            status: "new",
+            notes: "Imported from Google Sheets",
+          });
+          existingEmails.add(email);
+          imported++;
+        } catch (e: any) {
+          errors.push(`Row ${i + 1}: ${e.message}`);
+        }
+      }
+
+      res.json({ imported, skipped, total: lines.length - 1, errors: errors.slice(0, 5) });
+    } catch (e: any) {
+      res.status(500).json({ error: `Import failed: ${e.message}` });
+    }
+  });
+
   app.patch("/api/leads/:id", (req, res) => {
     const lead = storage.getLead(Number(req.params.id));
     if (!lead) return res.status(404).json({ error: "Not found" });

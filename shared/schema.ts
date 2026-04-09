@@ -40,6 +40,8 @@ export const clients = sqliteTable("clients", {
   otpExpiresAt: integer("otp_expires_at"), // unix ms expiry
   otpVerified: integer("otp_verified", { mode: "boolean" }).notNull().default(false), // session verified flag
   otpAttempts: integer("otp_attempts").notNull().default(0), // failed attempt counter
+  // Google Sheets integration
+  googleSheetUrl: text("google_sheet_url"),
 });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
