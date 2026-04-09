@@ -20,7 +20,8 @@ import TerritoryManager from "@/pages/territory-manager";
 import LeadManager from "@/pages/lead-manager";
 import DepositManager from "@/pages/deposit-manager";
 import BankAccount from "@/pages/bank-account";
-import { Landmark } from "lucide-react";
+import DataProducts from "@/pages/data-products";
+import { Landmark, Database } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { label: "Lead Manager", href: "/leads", icon: Users },
   { label: "Deposit Manager", href: "/deposits", icon: Wallet },
   { label: "Bank Account", href: "/bank", icon: Landmark },
+  { label: "Data Products", href: "/data-products", icon: Database },
 ];
 
 function ThemeToggle() {
@@ -129,6 +131,7 @@ export default function DashboardLayout() {
             <Route path="/leads" component={() => <LeadManager clientId={clientId} />} />
             <Route path="/deposits" component={() => <DepositManager clientId={clientId} />} />
             <Route path="/bank" component={() => <BankAccount clientId={clientId} />} />
+            <Route path="/data-products" component={() => <DataProducts clientId={clientId} />} />
           </Switch>
         </main>
       </div>

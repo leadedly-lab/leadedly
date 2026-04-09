@@ -19,7 +19,8 @@ import AdminDeposits from "@/pages/admin-deposits";
 import AdminIndustries from "@/pages/admin-industries";
 import AdminPlaid from "@/pages/admin-plaid";
 import AdminMfa from "@/pages/admin-mfa";
-import { Landmark, ShieldCheck } from "lucide-react";
+import AdminDataProducts from "@/pages/admin-data-products";
+import { Landmark, ShieldCheck, Database } from "lucide-react";
 
 const NAV = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
@@ -28,6 +29,7 @@ const NAV = [
   { label: "Deposits", href: "/deposits", icon: Wallet },
   { label: "Industries & Fees", href: "/industries", icon: Star },
   { label: "ACH / Plaid", href: "/plaid", icon: Landmark },
+  { label: "Data Products", href: "/data-products", icon: Database },
   { label: "MFA Security", href: "/mfa", icon: ShieldCheck },
 ];
 
@@ -103,6 +105,7 @@ export default function AdminLayout() {
             <Route path="/deposits" component={AdminDeposits} />
             <Route path="/industries" component={AdminIndustries} />
             <Route path="/plaid" component={AdminPlaid} />
+            <Route path="/data-products" component={AdminDataProducts} />
             <Route path="/mfa" component={AdminMfa} />
           </Switch>
         </main>

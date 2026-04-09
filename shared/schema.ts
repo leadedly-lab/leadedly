@@ -152,6 +152,37 @@ export const insertPlaidTransferSchema = createInsertSchema(plaidTransfers).omit
 export type InsertPlaidTransfer = z.infer<typeof insertPlaidTransferSchema>;
 export type PlaidTransfer = typeof plaidTransfers.$inferSelect;
 
+// ─── Data Products ─────────────────────────────────────────────────────────────
+export const dataProducts = sqliteTable("data_products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  recordCount: integer("record_count").notNull(), // number of records included
+  oneTimePrice: real("one_time_price").notNull(), // price for one-time purchase
+  monthlyPrice: real("monthly_price").notNull(), // price for monthly subscription
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
+});
+export const insertDataProductSchema = createInsertSchema(dataProducts).omit({ id: true, createdAt: true });
+export type InsertDataProduct = z.infer<typeof insertDataProductSchema>;
+export type DataProduct = typeof dataProducts.$inferSelect;
+
+// ─── Data Subscriptions ────────────────────────────────────────────────────────
+export const dataSubscriptions = sqliteTable("data_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  productId: integer("product_id").notNull(),
+  type: text("type").notNull(), // one_time | monthly
+  status: text("status").notNull().default("active"), // active | cancelled | expired
+  amount: real("amount").notNull(), // price paid
+  nextBillingAt: integer("next_billing_at"), // for monthly subs — next charge date (unix ms)
+  cancelledAt: integer("cancelled_at"),
+  createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
+});
+export const insertDataSubscriptionSchema = createInsertSchema(dataSubscriptions).omit({ id: true, createdAt: true });
+export type InsertDataSubscription = z.infer<typeof insertDataSubscriptionSchema>;
+export type DataSubscription = typeof dataSubscriptions.$inferSelect;
+
 // ─── Admin Users ───────────────────────────────────────────────────────────────
 export const adminUsers = sqliteTable("admin_users", {
   id: integer("id").primaryKey({ autoIncrement: true }),

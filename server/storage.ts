@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { eq, and, desc } from "drizzle-orm";
 import {
   industries, clients, territories, leads, depositTransactions, adminUsers,
-  plaidItems, plaidTransfers,
+  plaidItems, plaidTransfers, dataProducts, dataSubscriptions,
   type Industry, type InsertIndustry,
   type Client, type InsertClient,
   type Territory, type InsertTerritory,
@@ -12,6 +12,8 @@ import {
   type AdminUser, type InsertAdminUser,
   type PlaidItem, type InsertPlaidItem,
   type PlaidTransfer, type InsertPlaidTransfer,
+  type DataProduct, type InsertDataProduct,
+  type DataSubscription, type InsertDataSubscription,
 } from "@shared/schema";
 
 // In production on Render, DATABASE_PATH points to the persistent disk.
@@ -134,6 +136,29 @@ sqlite.exec(`
     created_at INTEGER NOT NULL,
     settled_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS data_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    record_count INTEGER NOT NULL,
+    one_time_price REAL NOT NULL,
+    monthly_price REAL NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS data_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    amount REAL NOT NULL,
+    next_billing_at INTEGER,
+    cancelled_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migrate existing DB: add columns if they don't exist yet
@@ -242,6 +267,19 @@ export interface IStorage {
   createPlaidTransfer(data: InsertPlaidTransfer): PlaidTransfer;
   updatePlaidTransferStatus(transferId: string, status: string, settledAt?: number): PlaidTransfer | undefined;
   getAllPendingTransfers(): PlaidTransfer[];
+
+  // Data Products
+  getDataProducts(): DataProduct[];
+  getDataProduct(id: number): DataProduct | undefined;
+  createDataProduct(data: InsertDataProduct): DataProduct;
+  updateDataProduct(id: number, data: Partial<InsertDataProduct>): DataProduct | undefined;
+  deleteDataProduct(id: number): void;
+
+  // Data Subscriptions
+  getDataSubscriptions(): DataSubscription[];
+  getDataSubscriptionsByClient(clientId: number): DataSubscription[];
+  createDataSubscription(data: InsertDataSubscription): DataSubscription;
+  updateDataSubscription(id: number, data: Partial<InsertDataSubscription>): DataSubscription | undefined;
 }
 
 export class SQLiteStorage implements IStorage {
@@ -393,6 +431,37 @@ export class SQLiteStorage implements IStorage {
   }
   getAllPendingTransfers() {
     return db.select().from(plaidTransfers).where(eq(plaidTransfers.status, "pending")).all();
+  }
+
+  // Data Products
+  getDataProducts() {
+    return db.select().from(dataProducts).orderBy(desc(dataProducts.createdAt)).all();
+  }
+  getDataProduct(id: number) {
+    return db.select().from(dataProducts).where(eq(dataProducts.id, id)).get();
+  }
+  createDataProduct(data: InsertDataProduct) {
+    return db.insert(dataProducts).values({ ...data, createdAt: Date.now() }).returning().get();
+  }
+  updateDataProduct(id: number, data: Partial<InsertDataProduct>) {
+    return db.update(dataProducts).set(data).where(eq(dataProducts.id, id)).returning().get();
+  }
+  deleteDataProduct(id: number) {
+    db.delete(dataProducts).where(eq(dataProducts.id, id)).run();
+  }
+
+  // Data Subscriptions
+  getDataSubscriptions() {
+    return db.select().from(dataSubscriptions).orderBy(desc(dataSubscriptions.createdAt)).all();
+  }
+  getDataSubscriptionsByClient(clientId: number) {
+    return db.select().from(dataSubscriptions).where(eq(dataSubscriptions.clientId, clientId)).orderBy(desc(dataSubscriptions.createdAt)).all();
+  }
+  createDataSubscription(data: InsertDataSubscription) {
+    return db.insert(dataSubscriptions).values({ ...data, createdAt: Date.now() }).returning().get();
+  }
+  updateDataSubscription(id: number, data: Partial<InsertDataSubscription>) {
+    return db.update(dataSubscriptions).set(data).where(eq(dataSubscriptions.id, id)).returning().get();
   }
 }
 

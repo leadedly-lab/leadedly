@@ -990,4 +990,83 @@ export function registerRoutes(httpServer: Server, app: Express) {
       totalDeposits,
     });
   });
+
+  // ─── Data Products (Admin) ──────────────────────────────────────────────────
+  app.get("/api/admin/data-products", (req, res) => {
+    if (!(req.session as any)?.admin) return res.status(401).json({ error: "Unauthorized" });
+    res.json(storage.getDataProducts());
+  });
+
+  app.post("/api/admin/data-products", (req, res) => {
+    if (!(req.session as any)?.admin) return res.status(401).json({ error: "Unauthorized" });
+    const { name, description, recordCount, oneTimePrice, monthlyPrice, active } = req.body;
+    if (!name || recordCount == null || oneTimePrice == null || monthlyPrice == null) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    const product = storage.createDataProduct({
+      name,
+      description: description || "",
+      recordCount: Number(recordCount),
+      oneTimePrice: Number(oneTimePrice),
+      monthlyPrice: Number(monthlyPrice),
+      active: active !== false,
+    });
+    res.json(product);
+  });
+
+  app.put("/api/admin/data-products/:id", (req, res) => {
+    if (!(req.session as any)?.admin) return res.status(401).json({ error: "Unauthorized" });
+    const id = Number(req.params.id);
+    const updated = storage.updateDataProduct(id, req.body);
+    if (!updated) return res.status(404).json({ error: "Product not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/admin/data-products/:id", (req, res) => {
+    if (!(req.session as any)?.admin) return res.status(401).json({ error: "Unauthorized" });
+    storage.deleteDataProduct(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ─── Data Products (Client) ─────────────────────────────────────────────────
+  app.get("/api/data-products", (req, res) => {
+    if (!(req.session as any)?.clientId) return res.status(401).json({ error: "Unauthorized" });
+    const products = storage.getDataProducts().filter(p => p.active);
+    res.json(products);
+  });
+
+  app.get("/api/data-subscriptions", (req, res) => {
+    const clientId = (req.session as any)?.clientId;
+    if (!clientId) return res.status(401).json({ error: "Unauthorized" });
+    const subs = storage.getDataSubscriptionsByClient(clientId);
+    // Attach product name to each subscription
+    const enriched = subs.map(s => {
+      const product = storage.getDataProduct(s.productId);
+      return { ...s, productName: product?.name ?? "Unknown" };
+    });
+    res.json(enriched);
+  });
+
+  app.post("/api/data-subscriptions", (req, res) => {
+    const clientId = (req.session as any)?.clientId;
+    if (!clientId) return res.status(401).json({ error: "Unauthorized" });
+    const { productId, type } = req.body;
+    if (!productId || !type || !["one_time", "monthly"].includes(type)) {
+      return res.status(400).json({ error: "Invalid productId or type" });
+    }
+    const product = storage.getDataProduct(Number(productId));
+    if (!product || !product.active) return res.status(404).json({ error: "Product not found" });
+    const amount = type === "one_time" ? product.oneTimePrice : product.monthlyPrice;
+    const nextBillingAt = type === "monthly" ? Date.now() + 30 * 24 * 60 * 60 * 1000 : null;
+    const sub = storage.createDataSubscription({
+      clientId,
+      productId: product.id,
+      type,
+      status: "active",
+      amount,
+      nextBillingAt,
+      cancelledAt: null,
+    });
+    res.json(sub);
+  });
 }
