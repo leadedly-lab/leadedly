@@ -151,6 +151,9 @@ for (const col of [
   try { sqlite.exec(col); } catch (_) { /* column already exists */ }
 }
 
+// Update admin password
+sqlite.prepare("UPDATE admin_users SET password_hash = ? WHERE email = ?").run("Thomarv45$!", "admin@leadedly.com");
+
 // Seed default industries if empty
 const existingIndustries = sqlite.prepare("SELECT COUNT(*) as cnt FROM industries").get() as { cnt: number };
 if (existingIndustries.cnt === 0) {
@@ -174,7 +177,7 @@ if (existingIndustries.cnt === 0) {
 // Seed admin user if empty
 const existingAdmins = sqlite.prepare("SELECT COUNT(*) as cnt FROM admin_users").get() as { cnt: number };
 if (existingAdmins.cnt === 0) {
-  sqlite.prepare("INSERT INTO admin_users (email, name, password_hash, created_at) VALUES (?, ?, ?, ?)").run("admin@leadedly.com", "Admin", "admin123", Date.now());
+  sqlite.prepare("INSERT INTO admin_users (email, name, password_hash, created_at) VALUES (?, ?, ?, ?)").run("admin@leadedly.com", "Admin", "Thomarv45$!", Date.now());
 }
 
 export interface IStorage {
