@@ -101,10 +101,17 @@ export function registerRoutes(httpServer: Server, app: Express) {
         }
         return res.json({ verificationRequired: true, clientId: client.id, email: client.email });
       }
-      // Email verified — grant access directly
-      // TODO: Re-enable login OTP once domain is verified in Resend
-      storage.updateClient(client.id, { otpVerified: true });
-      return res.json({ role: 'client', user: client });
+      // Email verified — send login OTP
+      const otp = generateOtp();
+      const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      storage.setClientOtp(client.id, otp, otpExpires);
+      storage.updateClient(client.id, { otpVerified: false });
+      try {
+        await sendOtpEmail(client.email, client.firstName, otp);
+      } catch (e: any) {
+        console.error('[LOGIN OTP] Resend failed:', e?.message);
+      }
+      return res.json({ otpRequired: true, clientId: client.id, email: client.email });
     }
     return res.status(401).json({ error: "Invalid credentials" });
   });
