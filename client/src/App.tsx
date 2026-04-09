@@ -17,8 +17,7 @@ import EmailVerification from "@/pages/email-verification";
 import NotFound from "@/pages/not-found";
 
 function AppContent() {
-  const { auth } = useAuth();
-
+  const { auth, setAuth } = useAuth(); // ✅ FIXED: added setAuth
   if (!auth) {
     return (
       <Router hook={useHashLocation}>
@@ -31,7 +30,6 @@ function AppContent() {
       </Router>
     );
   }
-
   if (auth.role === "admin") {
     return (
       <SidebarProvider style={{ "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" } as React.CSSProperties}>
@@ -47,7 +45,6 @@ function AppContent() {
       </SidebarProvider>
     );
   }
-
   // Client — email not yet verified (just signed up)
   if (!auth.user.emailVerified) {
     return (
@@ -56,11 +53,10 @@ function AppContent() {
         email={auth.user.email}
         firstName={auth.user.firstName}
         mode="signup"
-        onVerified={(data) => setAuth(data)}
+        onVerified={(data) => setAuth(data)} // ✅ FIXED: setAuth now defined
       />
     );
   }
-
   // Client — onboarding incomplete
   if (!auth.user.onboardingCompleted) {
     return (
@@ -69,7 +65,6 @@ function AppContent() {
       </Router>
     );
   }
-
   return (
     <SidebarProvider style={{ "--sidebar-width": "17rem", "--sidebar-width-icon": "4rem" } as React.CSSProperties}>
       <div className="flex h-screen w-full overflow-hidden">
