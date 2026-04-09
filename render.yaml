@@ -22,7 +22,7 @@ services:
       - key: PLAID_ENV
         value: sandbox
       - key: OTP_FROM_EMAIL
-        value: noreply@leadedly.com
+        value: onboarding@resend.dev
       - key: OTP_FROM_NAME
         value: Leadedly
       - key: PLAID_CLIENT_ID
