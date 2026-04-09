@@ -8,18 +8,29 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { MapPin, DollarSign, BarChart2, Edit2 } from "lucide-react";
-import type { Territory, Client } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MapPin, DollarSign, BarChart2, Plus } from "lucide-react";
+import type { Territory, Client, Industry } from "@shared/schema";
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+  "VA","WA","WV","WI","WY","DC",
+];
 
 export default function AdminTerritories() {
   const { toast } = useToast();
   const [depositOpen, setDepositOpen] = useState<Territory | null>(null);
   const [statsOpen, setStatsOpen] = useState<Territory | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
+  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500" });
 
   const { data: territories = [], isLoading } = useQuery<Territory[]>({ queryKey: ["/api/territories"] });
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
+  const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
 
   const depositMutation = useMutation({
     mutationFn: async ({ id, amount }: { id: number; amount: number }) => {
@@ -47,6 +58,26 @@ export default function AdminTerritories() {
     },
   });
 
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof newTerritory) => {
+      const res = await apiRequest("POST", "/api/territories", {
+        clientId: Number(data.clientId),
+        industryId: Number(data.industryId),
+        state: data.state,
+        city: data.city,
+        depositAmount: Number(data.depositAmount),
+        depositBalance: 0,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
+      setAddOpen(false);
+      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500" });
+      toast({ title: "Territory created", description: "The client can now deposit funds via their Bank Account page." });
+    },
+  });
+
   const getClient = (clientId: number) => clients.find(c => c.id === clientId);
 
   return (
@@ -55,6 +86,9 @@ export default function AdminTerritories() {
         <h1 className="text-xl font-bold font-display text-foreground">Territories</h1>
         <p className="text-muted-foreground text-sm mt-0.5">Manage territory deposits and monthly performance stats.</p>
       </div>
+      <Button onClick={() => setAddOpen(true)} data-testid="button-add-territory">
+        <Plus className="w-4 h-4 mr-1.5" /> Add Territory
+      </Button>
 
       <div className="rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
@@ -147,6 +181,74 @@ export default function AdminTerritories() {
             </div>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Add Territory Dialog */}
+      <Dialog open={addOpen} onOpenChange={() => setAddOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Create Territory</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Client</Label>
+              <Select value={newTerritory.clientId} onValueChange={v => setNewTerritory(f => ({ ...f, clientId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName} ({c.email})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Industry</Label>
+              <Select value={newTerritory.industryId} onValueChange={v => setNewTerritory(f => ({ ...f, industryId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
+                <SelectContent>
+                  {industries.filter(i => i.active).map(i => (
+                    <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Select value={newTerritory.state} onValueChange={v => setNewTerritory(f => ({ ...f, state: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input
+                placeholder="e.g. Austin"
+                value={newTerritory.city}
+                onChange={e => setNewTerritory(f => ({ ...f, city: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Deposit Amount ($)</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="e.g. 2500"
+                value={newTerritory.depositAmount}
+                onChange={e => setNewTerritory(f => ({ ...f, depositAmount: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">The amount the client owes for this territory. Their balance starts at $0 until they deposit via Plaid.</p>
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => createMutation.mutate(newTerritory)}
+              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || !newTerritory.city.trim() || !newTerritory.depositAmount || createMutation.isPending}
+            >
+              {createMutation.isPending ? "Creating…" : "Create Territory"}
+            </Button>
+          </div>
+        </DialogContent>
       </Dialog>
 
       {/* Stats Dialog */}
