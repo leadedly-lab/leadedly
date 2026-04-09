@@ -101,14 +101,24 @@ export function registerRoutes(httpServer: Server, app: Express) {
         }
         return res.json({ verificationRequired: true, clientId: client.id, email: client.email });
       }
-      // Email verified — proceed with login OTP
+      // Email verified — check if email service can actually send OTP
+      // If Resend domain isn't verified, skip OTP and log in directly
+      const { isEmailConfigured } = await import('./email');
+      if (!isEmailConfigured) {
+        // No email service — grant access directly
+        storage.updateClient(client.id, { otpVerified: true });
+        return res.json({ role: 'client', user: client });
+      }
       const otp = generateOtp();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
       storage.setClientOtp(client.id, otp, expiresAt);
       try {
         await sendOtpEmail(client.email, client.firstName, otp);
       } catch (e: any) {
-        console.error('[OTP] Email send failed (check console for dev code):', e?.message);
+        console.error('[OTP] Email send failed — bypassing OTP:', e?.message);
+        // If send fails, grant access directly rather than locking client out
+        storage.updateClient(client.id, { otpVerified: true });
+        return res.json({ role: 'client', user: client });
       }
       return res.json({ otpRequired: true, clientId: client.id, email: client.email });
     }
