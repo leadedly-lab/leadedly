@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, mkdir, copyFile } from "fs/promises";
+import { existsSync } from "fs";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -17,6 +18,18 @@ async function buildAll() {
 
   console.log("building client...");
   await viteBuild();
+
+  // Copy static landing pages into the dist/public directory
+  const landingPages = [
+    { src: "public/rei/index.html", dest: "dist/public/rei/index.html" },
+  ];
+  for (const { src, dest } of landingPages) {
+    if (existsSync(src)) {
+      await mkdir(dest.replace("/index.html", ""), { recursive: true });
+      await copyFile(src, dest);
+      console.log(`copied landing page: ${src} → ${dest}`);
+    }
+  }
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
