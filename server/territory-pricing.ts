@@ -29,11 +29,26 @@ export function getTerritoryPrice(city: string, state: string): {
   price: number;
   tier: string;
 } {
-  // For statewide territories, use total state population
+  // For statewide territories, price based on state population with volume discount
   if (city === "Statewide") {
     const pop = getStatePopulation(state);
-    // Statewide is always top tier
-    return { population: pop, price: 5000, tier: "Statewide Territory" };
+    if (pop === null) {
+      return { population: null, price: 7000, tier: "Statewide (state not found)" };
+    }
+    const statewideTiers = [
+      { min: 20_000_000, label: "Statewide — Mega State (20M+)", price: 15000 },
+      { min: 10_000_000, label: "Statewide — Large State (10M–20M)", price: 12000 },
+      { min: 5_000_000, label: "Statewide — Mid-Large State (5M–10M)", price: 9000 },
+      { min: 2_000_000, label: "Statewide — Mid State (2M–5M)", price: 7000 },
+      { min: 1_000_000, label: "Statewide — Small State (1M–2M)", price: 5000 },
+      { min: 0, label: "Statewide — Small State (<1M)", price: 3500 },
+    ];
+    for (const tier of statewideTiers) {
+      if (pop >= tier.min) {
+        return { population: pop, price: tier.price, tier: tier.label };
+      }
+    }
+    return { population: pop, price: 3500, tier: "Statewide — Small State (<1M)" };
   }
 
   const pop = getCityPopulation(city, state);
