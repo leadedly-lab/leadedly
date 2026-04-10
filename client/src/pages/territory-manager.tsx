@@ -24,6 +24,7 @@ const US_STATES = [
 ];
 
 type TerritoryForm = { state: string; city: string };
+type PricingInfo = { population: number | null; price: number; tier: string };
 
 export default function TerritoryManager({ clientId }: { clientId: number }) {
   const { auth } = useAuth();
@@ -32,6 +33,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   const [addOpen, setAddOpen] = useState(false);
   const [depositPromptOpen, setDepositPromptOpen] = useState(false);
   const [pendingTerritories, setPendingTerritories] = useState<TerritoryForm[]>([{ state: "", city: "" }]);
+  const [pendingPricing, setPendingPricing] = useState<(PricingInfo | null)[]>([null]);
   const [totalOwed, setTotalOwed] = useState(0);
 
   const { data: plaidStatus } = useQuery<PlaidStatus>({
@@ -44,18 +46,29 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
     enabled: !!clientId,
   });
 
+  // Fetch pricing for a territory
+  const fetchPricingForIndex = async (index: number, state: string, city: string) => {
+    if (!state || !city.trim()) {
+      setPendingPricing(p => { const n = [...p]; n[index] = null; return n; });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/territory-pricing?state=${state}&city=${encodeURIComponent(city.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPendingPricing(p => { const n = [...p]; n[index] = data; return n; });
+      }
+    } catch { /* ignore */ }
+  };
+
   const addMutation = useMutation({
     mutationFn: async (items: TerritoryForm[]) => {
-      const existingCount = territories.length;
       for (let i = 0; i < items.length; i++) {
-        const isFirst = existingCount === 0 && i === 0;
-        const deposit = isFirst ? 2000 : 1250;
         await apiRequest("POST", "/api/territories", {
           clientId,
           industryId: auth?.user?.industryId ?? 1,
           state: items[i].state,
           city: items[i].city,
-          depositAmount: deposit,
           depositBalance: 0,
           active: true,
         });
@@ -65,22 +78,17 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
       queryClient.invalidateQueries({ queryKey: [`/api/territories/client/${clientId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/stats/client/${clientId}`] });
       setAddOpen(false);
-      // Calculate amount owed and show deposit prompt
-      const existingCount = territories.length;
-      let total = 0;
-      pendingTerritories.forEach((_, i) => {
-        total += (existingCount === 0 && i === 0) ? 2000 : 1250;
-      });
+      const total = pendingPricing.reduce((sum, p) => sum + (p?.price ?? 0), 0);
       setTotalOwed(total);
       setDepositPromptOpen(true);
       setPendingTerritories([{ state: "", city: "" }]);
+      setPendingPricing([null]);
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   function calcTotal() {
-    const existing = territories.length;
-    return pendingTerritories.reduce((sum, _, i) => sum + ((existing === 0 && i === 0) ? 2000 : 1250), 0);
+    return pendingPricing.reduce((sum, p) => sum + (p?.price ?? 0), 0);
   }
 
   function handleAdd() {
@@ -174,15 +182,14 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              First territory: <span className="font-semibold text-foreground">$2,000</span> &nbsp;|&nbsp;
-              Additional territories: <span className="font-semibold text-foreground">$1,250 each</span>
+              Pricing is based on city population. Enter a city and tab out to see the price.
             </p>
             <div className="space-y-3">
               {pendingTerritories.map((t, i) => (
                 <div key={i} className="flex gap-3 items-end">
                   <div className="w-28 space-y-1">
                     <Label className="text-xs">State</Label>
-                    <Select value={t.state} onValueChange={v => setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, state: v } : x))}>
+                    <Select value={t.state} onValueChange={v => { setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, state: v } : x)); fetchPricingForIndex(i, v, t.city); }}>
                       <SelectTrigger data-testid={`select-state-${i}`}><SelectValue placeholder="State" /></SelectTrigger>
                       <SelectContent>
                         {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -196,10 +203,17 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                       placeholder="City name"
                       value={t.city}
                       onChange={e => setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, city: e.target.value } : x))}
+                      onBlur={() => fetchPricingForIndex(i, t.state, t.city)}
                     />
+                    {pendingPricing[i] && (
+                      <p className="text-xs text-primary font-medium">
+                        ${pendingPricing[i]!.price.toLocaleString()} — {pendingPricing[i]!.tier}
+                        {pendingPricing[i]!.population ? ` (${pendingPricing[i]!.population!.toLocaleString()} pop.)` : ""}
+                      </p>
+                    )}
                   </div>
                   {i > 0 && (
-                    <Button size="icon" variant="ghost" onClick={() => setPendingTerritories(p => p.filter((_, idx) => idx !== i))}>
+                    <Button size="icon" variant="ghost" onClick={() => { setPendingTerritories(p => p.filter((_, idx) => idx !== i)); setPendingPricing(p => p.filter((_, idx) => idx !== i)); }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
@@ -209,7 +223,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setPendingTerritories(p => [...p, { state: "", city: "" }])}
+              onClick={() => { setPendingTerritories(p => [...p, { state: "", city: "" }]); setPendingPricing(p => [...p, null]); }}
               data-testid="button-add-another-city"
             >
               <Plus className="w-4 h-4 mr-1" /> Add Another City

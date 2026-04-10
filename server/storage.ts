@@ -60,6 +60,7 @@ sqlite.exec(`
     industry_id INTEGER NOT NULL,
     state TEXT NOT NULL,
     city TEXT NOT NULL,
+    population INTEGER NOT NULL DEFAULT 0,
     deposit_amount REAL NOT NULL DEFAULT 2000,
     deposit_balance REAL NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
@@ -173,6 +174,7 @@ for (const col of [
   "ALTER TABLE clients ADD COLUMN otp_attempts INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE clients ADD COLUMN google_sheet_url TEXT",
   "ALTER TABLE clients ADD COLUMN tos_agreed_at INTEGER",
+  "ALTER TABLE territories ADD COLUMN population INTEGER NOT NULL DEFAULT 0",
 ]) {
   try { sqlite.exec(col); } catch (_) { /* column already exists */ }
 }

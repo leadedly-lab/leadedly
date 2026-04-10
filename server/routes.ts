@@ -4,6 +4,7 @@ import * as speakeasy from "speakeasy";
 import * as QRCode from "qrcode";
 import { generateOtp, sendOtpEmail, sendVerificationEmail } from "./email";
 import { storage, sqlite } from "./storage";
+import { getTerritoryPrice, getCityPopulation, getPricingTiers } from "./territory-pricing";
 import {
   createLinkToken,
   exchangePublicToken,
@@ -432,11 +433,31 @@ export function registerRoutes(httpServer: Server, app: Express) {
         }
       }
 
-      const t = storage.createTerritory(req.body);
-      res.json(t);
+      // Auto-calculate deposit price from population
+      const pricing = getTerritoryPrice(requestedCity, state);
+      const body = {
+        ...req.body,
+        depositAmount: req.body.depositAmount ?? pricing.price,
+        population: pricing.population ?? 0,
+      };
+
+      const t = storage.createTerritory(body);
+      res.json({ ...t, pricing });
     } catch (e) {
       res.status(400).json({ error: String(e) });
     }
+  });
+
+  // Territory pricing lookup
+  app.get("/api/territory-pricing", (req, res) => {
+    const { city, state } = req.query;
+    if (!state) return res.status(400).json({ error: "state required" });
+    const pricing = getTerritoryPrice(String(city || "Statewide"), String(state));
+    res.json(pricing);
+  });
+
+  app.get("/api/territory-pricing/tiers", (_req, res) => {
+    res.json(getPricingTiers());
   });
   app.patch("/api/territories/:id", (req, res) => {
     const t = storage.updateTerritory(Number(req.params.id), req.body);

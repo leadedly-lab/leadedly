@@ -30,8 +30,9 @@ export default function AdminTerritories() {
   const [addOpen, setAddOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
-  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500", entireState: false });
+  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", entireState: false });
   const [deleteTarget, setDeleteTarget] = useState<Territory | null>(null);
+  const [pricingInfo, setPricingInfo] = useState<{ population: number | null; price: number; tier: string } | null>(null);
 
   const { data: territories = [], isLoading } = useQuery<Territory[]>({ queryKey: ["/api/territories"] });
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
@@ -79,6 +80,17 @@ export default function AdminTerritories() {
     },
   });
 
+  // Fetch pricing when city/state changes
+  const fetchPricing = async (state: string, city: string, entireState: boolean) => {
+    if (!state) { setPricingInfo(null); return; }
+    if (!entireState && !city.trim()) { setPricingInfo(null); return; }
+    try {
+      const cityParam = entireState ? "Statewide" : city.trim();
+      const res = await fetch(`/api/territory-pricing?state=${state}&city=${encodeURIComponent(cityParam)}`);
+      if (res.ok) setPricingInfo(await res.json());
+    } catch { /* ignore */ }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof newTerritory) => {
       const res = await apiRequest("POST", "/api/territories", {
@@ -86,7 +98,6 @@ export default function AdminTerritories() {
         industryId: Number(data.industryId),
         state: data.state,
         city: data.entireState ? "Statewide" : data.city,
-        depositAmount: Number(data.depositAmount),
         depositBalance: 0,
       });
       return res.json();
@@ -94,8 +105,9 @@ export default function AdminTerritories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
       setAddOpen(false);
-      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500", entireState: false });
-      toast({ title: "Territory created", description: "The client can now deposit funds via their Bank Account page." });
+      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", entireState: false });
+      setPricingInfo(null);
+      toast({ title: "Territory created", description: "Price set automatically based on city population." });
     },
   });
 
@@ -117,9 +129,9 @@ export default function AdminTerritories() {
             <tr className="border-b border-border bg-muted/30">
               <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Territory</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Client</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Population</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Deposit</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Ad Spend</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Revenue</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Actions</th>
             </tr>
           </thead>
@@ -142,14 +154,19 @@ export default function AdminTerritories() {
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">
                     {client ? `${client.firstName} ${client.lastName}` : "—"}
                   </td>
+                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs tabular">
+                    {t.population ? t.population.toLocaleString() : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs tabular">
+                    ${t.depositAmount.toFixed(0)}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`font-bold tabular text-sm ${t.depositBalance < 400 ? "text-red-400" : "text-green-400"}`}>
                       ${t.depositBalance.toFixed(2)}
                     </span>
                     {t.depositBalance < 400 && <span className="text-xs text-red-400 ml-1">⚠ Low</span>}
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs tabular">${t.monthlyAdSpend.toFixed(0)}</td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs tabular">${t.monthlyLeadRevenue.toFixed(0)}</td>
+
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setDepositOpen(t); setDepositAmount(""); }} data-testid={`button-deposit-${t.id}`}>
@@ -238,7 +255,7 @@ export default function AdminTerritories() {
             </div>
             <div className="space-y-1.5">
               <Label>State</Label>
-              <Select value={newTerritory.state} onValueChange={v => setNewTerritory(f => ({ ...f, state: v }))}>
+              <Select value={newTerritory.state} onValueChange={v => { setNewTerritory(f => ({ ...f, state: v })); fetchPricing(v, newTerritory.city, newTerritory.entireState); }}>
                 <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                 <SelectContent>
                   {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -250,7 +267,7 @@ export default function AdminTerritories() {
                 <input
                   type="checkbox"
                   checked={newTerritory.entireState}
-                  onChange={e => setNewTerritory(f => ({ ...f, entireState: e.target.checked, city: e.target.checked ? "" : f.city }))}
+                  onChange={e => { const checked = e.target.checked; setNewTerritory(f => ({ ...f, entireState: checked, city: checked ? "" : f.city })); fetchPricing(newTerritory.state, "", checked); }}
                   className="rounded border-border"
                 />
                 <span className="text-sm font-medium text-foreground">Entire State Territory</span>
@@ -263,24 +280,26 @@ export default function AdminTerritories() {
                   placeholder="e.g. Austin"
                   value={newTerritory.city}
                   onChange={e => setNewTerritory(f => ({ ...f, city: e.target.value }))}
+                  onBlur={() => fetchPricing(newTerritory.state, newTerritory.city, newTerritory.entireState)}
                 />
               </div>
             )}
-            <div className="space-y-1.5">
-              <Label>Deposit Amount ($)</Label>
-              <Input
-                type="number"
-                min="1"
-                placeholder="e.g. 2500"
-                value={newTerritory.depositAmount}
-                onChange={e => setNewTerritory(f => ({ ...f, depositAmount: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground">The amount the client owes for this territory. Their balance starts at $0 until they deposit via Plaid.</p>
-            </div>
+            {pricingInfo && (
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Territory Deposit</span>
+                  <span className="text-xl font-bold text-primary tabular">${pricingInfo.price.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {pricingInfo.tier}
+                  {pricingInfo.population ? ` — Population: ${pricingInfo.population.toLocaleString()}` : ""}
+                </p>
+              </div>
+            )}
             <Button
               className="w-full"
               onClick={() => createMutation.mutate(newTerritory)}
-              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.city.trim()) || !newTerritory.depositAmount || createMutation.isPending}
+              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.city.trim()) || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating…" : "Create Territory"}
             </Button>
