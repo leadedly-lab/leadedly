@@ -415,10 +415,17 @@ export function registerRoutes(httpServer: Server, app: Express) {
       for (const existing of sameIndustry) {
         if (existing.state !== state) continue;
 
+        // Block duplicate statewide territory for same state+industry
+        if (isStatewide && existing.city === "Statewide") {
+          return res.status(409).json({
+            error: `${state} is already claimed as a statewide territory by another client in ${industryName}.`,
+          });
+        }
+
         // Rule 1: Block city purchases when a statewide territory exists
         if (!isStatewide && existing.city === "Statewide") {
           return res.status(409).json({
-            error: `A statewide territory already exists for ${industryName} in ${state}`,
+            error: `A statewide territory already exists for ${industryName} in ${state}. Individual city territories are not available.`,
           });
         }
 

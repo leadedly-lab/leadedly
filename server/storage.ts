@@ -61,6 +61,7 @@ sqlite.exec(`
     state TEXT NOT NULL,
     city TEXT NOT NULL,
     population INTEGER NOT NULL DEFAULT 0,
+    excluded_cities TEXT,
     deposit_amount REAL NOT NULL DEFAULT 2000,
     deposit_balance REAL NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
