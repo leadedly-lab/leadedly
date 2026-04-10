@@ -673,7 +673,7 @@ footer {
       
     </div>
     <div class="nav-cta">
-      <a href="#get-started" class="btn btn-primary">Get My Territory</a>
+      <button class="btn btn-primary" onclick="startOnboarding()">Get My Territory</button>
       <button class="hamburger" aria-label="Menu">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 12h18M3 6h18M3 18h18"/>
@@ -702,12 +702,12 @@ footer {
     </p>
 
     <div class="hero-actions">
-      <a href="#get-started" class="btn btn-gold btn-lg">
+      <button class="btn btn-gold btn-lg" onclick="startOnboarding()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
         </svg>
         Claim My City
-      </a>
+      </button>
       <a href="#how-it-works" class="btn btn-ghost btn-lg">
         See How It Works
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1052,9 +1052,9 @@ footer {
       <h2 class="cta-title">Ready to Own Your Market?<br><em>Claim Your City Today.</em></h2>
       <p class="cta-sub">Takes 3 minutes to set up. No credit card required to start — fund your territory when you're ready.</p>
       <div class="cta-actions">
-        <a href="https://app.leadedly.com/#/onboard" class="btn btn-gold btn-lg">
+        <button class="btn btn-gold btn-lg" onclick="startOnboarding()">
           🏠 &nbsp;Claim My City
-        </a>
+        </button>
         <a href="tel:+1-800-LEADEDLY" class="btn btn-ghost btn-lg">Talk to an Expert</a>
       </div>
       <p style="margin-top: var(--space-6); font-size: var(--text-xs); color: var(--text-faint);">No long-term contracts · Cancel anytime · Deposit is refundable</p>
@@ -1140,6 +1140,647 @@ const statsObserver = new IntersectionObserver((entries) => {
   }
 }, { threshold: 0.3 });
 statsObserver.observe(statsBar);
+</script>
+
+
+<!-- ─── CONVERSATIONAL ONBOARDING OVERLAY ─────────────────────────────────── -->
+<div id="ob-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:500;" onclick="closeOnboarding(event)"></div>
+
+<div id="ob-panel" style="
+  display:none;position:fixed;top:0;right:0;bottom:0;width:100%;max-width:520px;
+  background:#0D1220;border-left:1px solid #1E2D45;z-index:501;
+  overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,0.6);
+  transform:translateX(100%);transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);
+">
+  <!-- Header -->
+  <div style="
+    position:sticky;top:0;z-index:10;
+    padding:1.25rem 1.5rem;border-bottom:1px solid #1E2D45;
+    background:#0D1220;display:flex;align-items:center;justify-content:space-between;
+  ">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <div style="
+        width:32px;height:32px;border-radius:8px;
+        background:linear-gradient(135deg,#2563EB,#1D4ED8);
+        display:flex;align-items:center;justify-content:center;
+        font-weight:800;color:#fff;font-size:14px;
+      ">L</div>
+      <span style="font-weight:700;color:#EDF2F7;font-size:0.9rem;">Leadedly</span>
+    </div>
+    <button onclick="closeOnboarding()" style="
+      background:none;border:none;cursor:pointer;color:#8DA0B8;
+      width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      transition:background 0.2s;
+    " onmouseover="this.style.background='#1A2235'" onmouseout="this.style.background='none'">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Progress bar -->
+  <div style="height:3px;background:#1A2235;">
+    <div id="ob-progress" style="height:100%;background:linear-gradient(90deg,#2563EB,#4F46E5);transition:width 0.4s ease;width:0%"></div>
+  </div>
+
+  <!-- Step container -->
+  <div id="ob-steps" style="padding:2rem 1.75rem;min-height:calc(100vh - 80px);display:flex;flex-direction:column;"></div>
+</div>
+
+<style>
+.ob-step-title {
+  font-family:'Instrument Serif',Georgia,serif;
+  font-size:clamp(1.6rem,4vw,2rem);font-weight:400;
+  color:#EDF2F7;line-height:1.2;margin-bottom:0.5rem;
+}
+.ob-step-sub {
+  font-size:0.9rem;color:#8DA0B8;margin-bottom:1.75rem;line-height:1.6;
+}
+.ob-input {
+  width:100%;padding:1rem 1.125rem;
+  background:#111827;border:1.5px solid #1E2D45;
+  border-radius:0.75rem;color:#EDF2F7;
+  font-size:1.05rem;font-family:'DM Sans',sans-serif;
+  outline:none;transition:border-color 0.2s,box-shadow 0.2s;
+  -webkit-appearance:none;
+}
+.ob-input:focus { border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,0.15); }
+.ob-input::placeholder { color:#4A607A; }
+.ob-input.error { border-color:#EF4444; }
+.ob-btn {
+  width:100%;padding:1rem;border-radius:0.75rem;
+  background:linear-gradient(135deg,#2563EB 0%,#4F46E5 100%);
+  color:#fff;font-size:1rem;font-weight:600;
+  font-family:'DM Sans',sans-serif;border:none;cursor:pointer;
+  transition:all 0.2s;margin-top:0.75rem;
+  display:flex;align-items:center;justify-content:center;gap:0.5rem;
+}
+.ob-btn:hover:not(:disabled) {
+  background:linear-gradient(135deg,#3B82F6 0%,#6366F1 100%);
+  transform:translateY(-1px);box-shadow:0 4px 20px rgba(37,99,235,0.4);
+}
+.ob-btn:disabled { opacity:0.5;cursor:not-allowed;transform:none; }
+.ob-back {
+  background:none;border:none;cursor:pointer;
+  color:#8DA0B8;font-size:0.85rem;font-family:'DM Sans',sans-serif;
+  display:flex;align-items:center;gap:0.375rem;
+  padding:0.5rem 0;transition:color 0.2s;margin-bottom:1.5rem;
+}
+.ob-back:hover { color:#EDF2F7; }
+.ob-error {
+  color:#F87171;font-size:0.85rem;margin-top:0.5rem;
+  display:flex;align-items:center;gap:0.375rem;
+}
+.ob-option {
+  width:100%;padding:0.875rem 1.125rem;margin-bottom:0.625rem;
+  background:#111827;border:1.5px solid #1E2D45;border-radius:0.75rem;
+  color:#EDF2F7;font-size:0.95rem;font-family:'DM Sans',sans-serif;
+  text-align:left;cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ob-option:hover,.ob-option.selected {
+  border-color:#2563EB;background:#0D1835;color:#fff;
+}
+.ob-option.selected { box-shadow:0 0 0 3px rgba(37,99,235,0.15); }
+.ob-pill {
+  display:inline-flex;align-items:center;gap:0.375rem;
+  padding:0.25rem 0.75rem;border-radius:9999px;
+  font-size:0.75rem;font-weight:600;
+  background:rgba(37,99,235,0.12);border:1px solid rgba(37,99,235,0.25);
+  color:#60A5FA;
+}
+/* Deposit reveal */
+.deposit-reveal {
+  background:linear-gradient(135deg,rgba(37,99,235,0.1) 0%,rgba(79,70,229,0.08) 100%);
+  border:1px solid rgba(37,99,235,0.25);border-radius:1rem;
+  padding:1.75rem;text-align:center;margin:1rem 0;
+}
+.deposit-amount {
+  font-family:'Instrument Serif',Georgia,serif;
+  font-size:clamp(2.5rem,8vw,3.5rem);font-weight:400;
+  color:#fff;line-height:1;margin-bottom:0.5rem;
+}
+.deposit-label { font-size:0.85rem;color:#8DA0B8; }
+@keyframes count-up {
+  from { opacity:0;transform:translateY(10px); }
+  to   { opacity:1;transform:translateY(0); }
+}
+.animate-in { animation:count-up 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+/* Success screen */
+.success-icon {
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,#2563EB,#4F46E5);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 1.5rem;font-size:32px;
+  box-shadow:0 0 40px rgba(37,99,235,0.4);
+  animation:count-up 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+</style>
+
+<script>
+const API = 'https://app.leadedly.com';
+
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY'
+];
+
+const STATE_NAMES = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+  CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',
+  HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',
+  KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',
+  MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',
+  NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',
+  NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',
+  OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
+  SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',
+  VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'
+};
+
+// Global state
+let ob = {
+  step: 0,
+  city: '', state: '', stateCode: '',
+  firstName: '', lastName: '', email: '',
+  phone: '', password: '',
+  depositAmount: 0, depositTier: '',
+  clientId: null, authData: null,
+};
+
+const TOTAL_STEPS = 8;
+
+function startOnboarding() {
+  // Reset
+  ob = { step:0, city:'', state:'', stateCode:'', firstName:'', lastName:'',
+         email:'', phone:'', password:'', depositAmount:0, depositTier:'',
+         clientId:null, authData:null };
+  document.getElementById('ob-backdrop').style.display = 'block';
+  const panel = document.getElementById('ob-panel');
+  panel.style.display = 'block';
+  requestAnimationFrame(() => { panel.style.transform = 'translateX(0)'; });
+  document.body.style.overflow = 'hidden';
+  renderStep(0);
+}
+
+function closeOnboarding(e) {
+  if (e && e.target !== document.getElementById('ob-backdrop')) return;
+  const panel = document.getElementById('ob-panel');
+  panel.style.transform = 'translateX(100%)';
+  setTimeout(() => {
+    panel.style.display = 'none';
+    document.getElementById('ob-backdrop').style.display = 'none';
+    document.body.style.overflow = '';
+  }, 400);
+}
+
+function setProgress(step) {
+  document.getElementById('ob-progress').style.width = (step / TOTAL_STEPS * 100) + '%';
+}
+
+function renderStep(step) {
+  ob.step = step;
+  setProgress(step);
+  const container = document.getElementById('ob-steps');
+  container.innerHTML = '';
+
+  const steps = [
+    renderCity, renderState, renderName,
+    renderEmail, renderPhone, renderPassword,
+    renderCreating, renderDepositReveal
+  ];
+  if (steps[step]) steps[step](container);
+}
+
+// ── Step 0: City ─────────────────────────────────────────────────────────────
+function renderCity(c) {
+  c.innerHTML = `
+    <div style="flex:1;">
+      <div class="ob-pill" style="margin-bottom:1.25rem;">Step 1 of ${TOTAL_STEPS}</div>
+      <h2 class="ob-step-title">What city do you<br><em style="font-style:italic;color:#60A5FA;">buy houses in?</em></h2>
+      <p class="ob-step-sub">We'll check if your territory is still available and give you a dedicated lead flow for that market.</p>
+      <input class="ob-input" id="city-input" type="text" placeholder="e.g. Tampa, Phoenix, Atlanta"
+        value="${ob.city}" autofocus autocomplete="off"
+        oninput="ob.city=this.value.trim()"
+        onkeydown="if(event.key==='Enter')nextFromCity()">
+      <div class="ob-error" id="city-err" style="display:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Please enter a city name
+      </div>
+      <button class="ob-btn" onclick="nextFromCity()" style="margin-top:1rem;">
+        Check Availability
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  `;
+  setTimeout(() => document.getElementById('city-input')?.focus(), 100);
+}
+function nextFromCity() {
+  ob.city = document.getElementById('city-input').value.trim();
+  if (!ob.city) {
+    document.getElementById('city-err').style.display = 'flex';
+    document.getElementById('city-input').classList.add('error');
+    return;
+  }
+  renderStep(1);
+}
+
+// ── Step 1: State ─────────────────────────────────────────────────────────────
+function renderState(c) {
+  const opts = US_STATES.map(s =>
+    `<button class="ob-option ${ob.stateCode===s?'selected':''}" onclick="selectState('${s}')" data-state="${s}">
+      <span>${STATE_NAMES[s]}</span>
+      <span style="font-size:0.8rem;color:#4A607A;">${s}</span>
+    </button>`
+  ).join('');
+
+  c.innerHTML = `
+    <button class="ob-back" onclick="renderStep(0)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="ob-pill" style="margin-bottom:1.25rem;">Step 2 of ${TOTAL_STEPS}</div>
+    <h2 class="ob-step-title">Which state is<br><em style="font-style:italic;color:#60A5FA;">${ob.city}</em> in?</h2>
+    <p class="ob-step-sub">We need your state to confirm the territory.</p>
+    <input class="ob-input" id="state-search" type="text" placeholder="Search state..." autofocus
+      oninput="filterStates(this.value)" style="margin-bottom:0.875rem;">
+    <div id="state-list" style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:0;">${opts}</div>
+  `;
+  setTimeout(() => document.getElementById('state-search')?.focus(), 100);
+}
+function filterStates(q) {
+  const lower = q.toLowerCase();
+  document.querySelectorAll('[data-state]').forEach(btn => {
+    const s = btn.dataset.state;
+    const visible = STATE_NAMES[s].toLowerCase().includes(lower) || s.toLowerCase().includes(lower);
+    btn.style.display = visible ? '' : 'none';
+  });
+}
+function selectState(code) {
+  ob.stateCode = code;
+  ob.state = STATE_NAMES[code];
+  renderStep(2);
+}
+
+// ── Step 2: Name ─────────────────────────────────────────────────────────────
+function renderName(c) {
+  c.innerHTML = `
+    <button class="ob-back" onclick="renderStep(1)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="ob-pill" style="margin-bottom:1.25rem;">Step 3 of ${TOTAL_STEPS}</div>
+    <h2 class="ob-step-title">What's your name?</h2>
+    <p class="ob-step-sub">We'll use this to set up your investor account.</p>
+    <input class="ob-input" id="fname" type="text" placeholder="First name"
+      value="${ob.firstName}" autofocus style="margin-bottom:0.75rem;"
+      oninput="ob.firstName=this.value.trim()"
+      onkeydown="if(event.key==='Enter')document.getElementById('lname').focus()">
+    <input class="ob-input" id="lname" type="text" placeholder="Last name"
+      value="${ob.lastName}"
+      oninput="ob.lastName=this.value.trim()"
+      onkeydown="if(event.key==='Enter')nextFromName()">
+    <div class="ob-error" id="name-err" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Please enter your first and last name
+    </div>
+    <button class="ob-btn" onclick="nextFromName()">
+      Continue
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  `;
+  setTimeout(() => document.getElementById('fname')?.focus(), 100);
+}
+function nextFromName() {
+  ob.firstName = document.getElementById('fname').value.trim();
+  ob.lastName  = document.getElementById('lname').value.trim();
+  if (!ob.firstName || !ob.lastName) {
+    document.getElementById('name-err').style.display = 'flex';
+    return;
+  }
+  renderStep(3);
+}
+
+// ── Step 3: Email ─────────────────────────────────────────────────────────────
+function renderEmail(c) {
+  c.innerHTML = `
+    <button class="ob-back" onclick="renderStep(2)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="ob-pill" style="margin-bottom:1.25rem;">Step 4 of ${TOTAL_STEPS}</div>
+    <h2 class="ob-step-title">What's your<br><em style="font-style:italic;color:#60A5FA;">email address?</em></h2>
+    <p class="ob-step-sub">We'll send a verification code here and deliver leads to this address.</p>
+    <input class="ob-input" id="email-input" type="email" placeholder="you@company.com"
+      value="${ob.email}" autofocus
+      oninput="ob.email=this.value.trim()"
+      onkeydown="if(event.key==='Enter')nextFromEmail()">
+    <div class="ob-error" id="email-err" style="display:none;"></div>
+    <button class="ob-btn" onclick="nextFromEmail()">
+      Continue
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  `;
+  setTimeout(() => document.getElementById('email-input')?.focus(), 100);
+}
+function nextFromEmail() {
+  ob.email = document.getElementById('email-input').value.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const errEl = document.getElementById('email-err');
+  if (!emailRegex.test(ob.email)) {
+    errEl.style.display = 'flex';
+    errEl.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Please enter a valid email address';
+    document.getElementById('email-input').classList.add('error');
+    return;
+  }
+  renderStep(4);
+}
+
+// ── Step 4: Phone ─────────────────────────────────────────────────────────────
+function renderPhone(c) {
+  c.innerHTML = `
+    <button class="ob-back" onclick="renderStep(3)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="ob-pill" style="margin-bottom:1.25rem;">Step 5 of ${TOTAL_STEPS}</div>
+    <h2 class="ob-step-title">What's your<br><em style="font-style:italic;color:#60A5FA;">phone number?</em></h2>
+    <p class="ob-step-sub">So we can reach you when a hot lead comes in — time is everything in real estate.</p>
+    <input class="ob-input" id="phone-input" type="tel" placeholder="(555) 555-5555"
+      value="${ob.phone}" autofocus
+      oninput="ob.phone=formatPhone(this.value)"
+      onkeydown="if(event.key==='Enter')nextFromPhone()">
+    <div class="ob-error" id="phone-err" style="display:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Please enter a valid 10-digit phone number
+    </div>
+    <button class="ob-btn" onclick="nextFromPhone()">
+      Continue
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  `;
+  const input = document.getElementById('phone-input');
+  if (input) { input.value = ob.phone; input.focus(); }
+}
+function formatPhone(val) {
+  const digits = val.replace(/\D/g,'').slice(0,10);
+  const el = document.getElementById('phone-input');
+  let formatted = digits;
+  if (digits.length >= 7) formatted = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+  else if (digits.length >= 4) formatted = '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+  else if (digits.length >= 1) formatted = '(' + digits;
+  if (el) el.value = formatted;
+  return formatted;
+}
+function nextFromPhone() {
+  const digits = ob.phone.replace(/\D/g,'');
+  if (digits.length < 10) {
+    document.getElementById('phone-err').style.display = 'flex';
+    document.getElementById('phone-input').classList.add('error');
+    return;
+  }
+  renderStep(5);
+}
+
+// ── Step 5: Password ─────────────────────────────────────────────────────────
+function renderPassword(c) {
+  c.innerHTML = `
+    <button class="ob-back" onclick="renderStep(4)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="ob-pill" style="margin-bottom:1.25rem;">Step 6 of ${TOTAL_STEPS}</div>
+    <h2 class="ob-step-title">Create your<br><em style="font-style:italic;color:#60A5FA;">password</em></h2>
+    <p class="ob-step-sub">Minimum 8 characters. You'll use this to log into your investor dashboard.</p>
+    <div style="position:relative;margin-bottom:0.75rem;">
+      <input class="ob-input" id="pw-input" type="password" placeholder="At least 8 characters"
+        autofocus
+        oninput="ob.password=this.value;updateStrength(this.value)"
+        onkeydown="if(event.key==='Enter')document.getElementById('pw2-input').focus()">
+      <button onclick="togglePw('pw-input',this)" style="position:absolute;right:0.875rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#4A607A;padding:0.25rem;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div id="pw-strength" style="display:none;margin-bottom:0.75rem;">
+      <div style="display:flex;gap:0.25rem;margin-bottom:0.25rem;">
+        <div id="ps1" style="flex:1;height:3px;border-radius:9999px;background:#1E2D45;transition:background 0.3s;"></div>
+        <div id="ps2" style="flex:1;height:3px;border-radius:9999px;background:#1E2D45;transition:background 0.3s;"></div>
+        <div id="ps3" style="flex:1;height:3px;border-radius:9999px;background:#1E2D45;transition:background 0.3s;"></div>
+        <div id="ps4" style="flex:1;height:3px;border-radius:9999px;background:#1E2D45;transition:background 0.3s;"></div>
+      </div>
+      <div id="ps-label" style="font-size:0.75rem;color:#4A607A;"></div>
+    </div>
+    <input class="ob-input" id="pw2-input" type="password" placeholder="Confirm password"
+      onkeydown="if(event.key==='Enter')nextFromPassword()">
+    <div class="ob-error" id="pw-err" style="display:none;"></div>
+    <button class="ob-btn" onclick="nextFromPassword()" style="margin-top:1rem;">
+      Create My Account
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+    <p style="font-size:0.75rem;color:#4A607A;text-align:center;margin-top:1rem;line-height:1.6;">
+      By creating an account you agree to our
+      <a href="https://app.leadedly.com/#/privacy" style="color:#60A5FA;" target="_blank">Privacy Policy</a>
+    </p>
+  `;
+  setTimeout(() => document.getElementById('pw-input')?.focus(), 100);
+}
+function togglePw(id, btn) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+function updateStrength(pw) {
+  const bar = document.getElementById('pw-strength');
+  if (!pw) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score++;
+  const colors = ['#EF4444','#F97316','#EAB308','#10B981'];
+  const labels = ['Weak','Fair','Good','Strong'];
+  for (let i=1;i<=4;i++) {
+    document.getElementById('ps'+i).style.background = i <= score ? colors[score-1] : '#1E2D45';
+  }
+  document.getElementById('ps-label').textContent = labels[score-1] || '';
+  document.getElementById('ps-label').style.color = colors[score-1] || '#4A607A';
+}
+function nextFromPassword() {
+  ob.password = document.getElementById('pw-input').value;
+  const pw2 = document.getElementById('pw2-input').value;
+  const errEl = document.getElementById('pw-err');
+  if (ob.password.length < 8) {
+    errEl.style.display='flex';
+    errEl.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Password must be at least 8 characters';
+    return;
+  }
+  if (ob.password !== pw2) {
+    errEl.style.display='flex';
+    errEl.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Passwords do not match';
+    return;
+  }
+  renderStep(6);
+}
+
+// ── Step 6: Creating account (spinner + API call) ─────────────────────────────
+function renderCreating(c) {
+  c.innerHTML = `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem 0;">
+      <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#4F46E5);display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;animation:spin 1.5s linear infinite;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-opacity="0.3"/><path d="M21 12a9 9 0 00-9-9" stroke-linecap="round"/></svg>
+      </div>
+      <h2 style="font-family:'Instrument Serif',serif;font-size:1.6rem;color:#EDF2F7;margin-bottom:0.5rem;">Setting up your territory...</h2>
+      <p id="creating-status" style="color:#8DA0B8;font-size:0.9rem;">Checking availability in ${ob.city}, ${ob.stateCode}</p>
+    </div>
+    <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+  `;
+  // Call the API
+  createAccount();
+}
+
+async function createAccount() {
+  const statusEl = document.getElementById('creating-status');
+  try {
+    // 1. Get the Real Estate industry ID (id: 4 = Real Estate, but fetch to be safe)
+    if (statusEl) statusEl.textContent = 'Securing your territory...';
+
+    const industriesRes = await fetch(API + '/api/industries');
+    const industries = await industriesRes.json();
+    const rei = industries.find(i => i.name.toLowerCase().includes('real estate')) || industries[0];
+
+    // 2. Create client account
+    if (statusEl) statusEl.textContent = 'Creating your investor account...';
+    const clientRes = await fetch(API + '/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: ob.firstName,
+        lastName:  ob.lastName,
+        email:     ob.email,
+        phone:     ob.phone.replace(/\D/g,''),
+        companyName:      ob.firstName + ' ' + ob.lastName + ' Investments',
+        jobTitle:         'Real Estate Investor',
+        industryId:       rei.id,
+        teamSize:         'Just Me',
+        citiesServed:     1,
+        monthlyLeadSpend: '$0 — Pay Per Close',
+        password:         ob.password,
+        onboardingCompleted: true,
+      })
+    });
+    const clientData = await clientRes.json();
+    if (clientData.error) throw new Error(clientData.error);
+    ob.clientId = clientData.id;
+
+    // 3. Get territory pricing for their city
+    if (statusEl) statusEl.textContent = 'Calculating your territory deposit...';
+    const priceRes = await fetch(API + '/api/territory-pricing?' + new URLSearchParams({ city: ob.city, state: ob.stateCode }));
+    if (priceRes.ok) {
+      const priceData = await priceRes.json();
+      ob.depositAmount = priceData.price;
+      ob.depositTier   = priceData.tier;
+    } else {
+      ob.depositAmount = 2000; // fallback
+      ob.depositTier   = 'Standard';
+    }
+
+    // 4. Create territory (with $0 balance — they'll fund it)
+    if (statusEl) statusEl.textContent = 'Claiming your territory...';
+    const terrRes = await fetch(API + '/api/territories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId:  ob.clientId,
+        industryId: rei.id,
+        state:     ob.stateCode,
+        city:      ob.city,
+        active:    false, // activates once deposit is funded
+        depositBalance: 0,
+      })
+    });
+
+    // 5. Store auth
+    ob.authData = clientData;
+
+    renderStep(7);
+  } catch(err) {
+    const c = document.getElementById('ob-steps');
+    c.innerHTML = `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem 0;">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;font-size:28px;">⚠️</div>
+        <h2 style="font-family:'Instrument Serif',serif;font-size:1.5rem;color:#EDF2F7;margin-bottom:0.5rem;">Something went wrong</h2>
+        <p style="color:#F87171;font-size:0.9rem;max-width:28ch;margin:0 auto 1.5rem;">${err.message}</p>
+        <button class="ob-btn" style="max-width:200px;" onclick="renderStep(5)">Try Again</button>
+      </div>
+    `;
+  }
+}
+
+// ── Step 7: Deposit Reveal ────────────────────────────────────────────────────
+function renderDepositReveal(c) {
+  const amt = ob.depositAmount;
+  const isFirst = true; // always first territory from landing page
+
+  c.innerHTML = `
+    <div style="flex:1;">
+      <div class="success-icon">🎉</div>
+      <h2 class="ob-step-title" style="text-align:center;margin-bottom:0.5rem;">
+        ${ob.city}, ${ob.stateCode} is yours!
+      </h2>
+      <p class="ob-step-sub" style="text-align:center;">
+        Your exclusive investor territory has been reserved. One final step — fund your deposit to activate your lead flow.
+      </p>
+
+      <div class="deposit-reveal animate-in">
+        <div style="font-size:0.8rem;color:#8DA0B8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Territory Deposit Required</div>
+        <div class="deposit-amount">$${amt.toLocaleString()}</div>
+        <div class="deposit-label" style="margin-top:0.375rem;">${ob.depositTier}</div>
+        <div style="height:1px;background:#1E2D45;margin:1rem 0;"></div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;">
+            <span style="color:#8DA0B8;">Territory</span>
+            <span style="color:#EDF2F7;font-weight:600;">${ob.city}, ${ob.stateCode}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;">
+            <span style="color:#8DA0B8;">Success fee per close</span>
+            <span style="color:#EDF2F7;font-weight:600;">$300</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;">
+            <span style="color:#8DA0B8;">Cost per lead</span>
+            <span style="color:#10B981;font-weight:700;">$0</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:0.75rem;padding:0.875rem 1rem;margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:flex-start;gap:0.625rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 15 15"/></svg>
+          <p style="font-size:0.8rem;color:#8DA0B8;line-height:1.6;margin:0;">
+            Your deposit is held in your account balance and is only drawn down when you close a deal. It's <strong style="color:#EDF2F7;">fully refundable</strong> if you cancel.
+          </p>
+        </div>
+      </div>
+
+      <button class="ob-btn" onclick="goToDashboard()">
+        Go to My Dashboard — Fund Later
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <p style="text-align:center;font-size:0.75rem;color:#4A607A;margin-top:0.75rem;">
+        You can fund your deposit from the Bank Account page in your dashboard
+      </p>
+    </div>
+  `;
+}
+
+function goToDashboard() {
+  // Store auth in sessionStorage so the main app can pick it up
+  if (ob.authData) {
+    sessionStorage.setItem('leadedly_auth', JSON.stringify({ role: 'client', user: ob.authData }));
+  }
+  window.location.href = 'https://app.leadedly.com/#/bank';
+}
 </script>
 
 </body>
