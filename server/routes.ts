@@ -408,29 +408,34 @@ export function registerRoutes(httpServer: Server, app: Express) {
       const requestedCity = (city || "").trim();
       const isStatewide = requestedCity === "Statewide";
 
+      // Get the industry name for error messages
+      const industry = storage.getIndustries().find(i => i.id === Number(industryId));
+      const industryName = industry?.name ?? "this industry";
+
       for (const existing of sameIndustry) {
         if (existing.state !== state) continue;
 
-        // If requesting statewide, block if ANY territory exists in that state for same industry
-        if (isStatewide) {
+        // Rule 1: Block city purchases when a statewide territory exists
+        if (!isStatewide && existing.city === "Statewide") {
           return res.status(409).json({
-            error: `${state} already has a territory claimed by another client in this industry. Statewide territory is not available.`,
-          });
-        }
-
-        // If an existing statewide territory exists, block any new territory in that state
-        if (existing.city === "Statewide") {
-          return res.status(409).json({
-            error: `${state} is already claimed as a statewide territory by another client in this industry.`,
+            error: `A statewide territory already exists for ${industryName} in ${state}`,
           });
         }
 
         // If requesting a specific city, block if that exact city is taken
-        if (existing.city.toLowerCase() === requestedCity.toLowerCase()) {
+        if (!isStatewide && existing.city.toLowerCase() === requestedCity.toLowerCase()) {
           return res.status(409).json({
             error: `${requestedCity}, ${state} is already claimed by another client in this industry.`,
           });
         }
+      }
+
+      // Rule 2: For statewide purchases, find existing city territories to carve out
+      let excludedCities: string[] = [];
+      if (isStatewide) {
+        excludedCities = sameIndustry
+          .filter(t => t.state === state && t.city !== "Statewide")
+          .map(t => t.city);
       }
 
       // Auto-calculate deposit price from population
@@ -439,10 +444,11 @@ export function registerRoutes(httpServer: Server, app: Express) {
         ...req.body,
         depositAmount: req.body.depositAmount ?? pricing.price,
         population: pricing.population ?? 0,
+        ...(isStatewide && excludedCities.length > 0 ? { excludedCities: JSON.stringify(excludedCities) } : {}),
       };
 
       const t = storage.createTerritory(body);
-      res.json({ ...t, pricing });
+      res.json({ ...t, excludedCities, pricing });
     } catch (e) {
       res.status(400).json({ error: String(e) });
     }

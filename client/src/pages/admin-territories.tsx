@@ -150,6 +150,7 @@ export default function AdminTerritories() {
                       <span className="font-medium text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</span>
                     </div>
                     <Badge variant={t.active ? "default" : "secondary"} className="text-xs mt-0.5">{t.active ? "Active" : "Paused"}</Badge>
+                    {t.excludedCities && (() => { try { const cities = JSON.parse(t.excludedCities) as string[]; return cities.length > 0 ? <p className="text-xs text-amber-400 mt-0.5">Excluded: {cities.join(", ")}</p> : null; } catch { return null; } })()}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">
                     {client ? `${client.firstName} ${client.lastName}` : "—"}

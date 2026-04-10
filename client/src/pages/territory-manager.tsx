@@ -135,6 +135,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                     <div>
                       <p className="font-semibold text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : t.city}</p>
                       {t.city !== "Statewide" && <p className="text-xs text-muted-foreground">{t.state}</p>}
+                      {t.city === "Statewide" && t.excludedCities && (() => { try { const cities = JSON.parse(t.excludedCities) as string[]; return cities.length > 0 ? <p className="text-xs text-amber-400 mt-0.5">Excludes {cities.join(", ")} (covered by other clients)</p> : null; } catch { return null; } })()}
                     </div>
                   </div>
                   <Badge variant={t.active ? "default" : "secondary"} className="text-xs">
