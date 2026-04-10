@@ -21,13 +21,18 @@ export default function DataProducts({ clientId }: { clientId?: number }) {
   });
 
   const { data: subscriptions = [], isLoading: loadingSubs } = useQuery<EnrichedSub[]>({
-    queryKey: ["/api/data-subscriptions"],
+    queryKey: ["/api/data-subscriptions", clientId],
+    queryFn: async () => {
+      const res = await fetch(`/api/data-subscriptions?clientId=${clientId}`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.json();
+    },
     enabled: !!clientId,
   });
 
   const purchaseMutation = useMutation({
     mutationFn: async ({ productId, type }: { productId: number; type: "one_time" | "monthly" }) => {
-      const res = await apiRequest("POST", "/api/data-subscriptions", { productId, type });
+      const res = await apiRequest("POST", "/api/data-subscriptions", { productId, type, clientId });
       return res.json();
     },
     onSuccess: (_data, vars) => {
