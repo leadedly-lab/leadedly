@@ -991,6 +991,15 @@ export function registerRoutes(httpServer: Server, app: Express) {
     });
   });
 
+  // ─── Delete Client (Admin) ─────────────────────────────────────────────────
+  app.delete("/api/admin/clients/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const client = storage.getClient(id);
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    storage.deleteClient(id);
+    res.json({ ok: true });
+  });
+
   // ─── Data Products (Admin) ──────────────────────────────────────────────────
   app.get("/api/admin/data-products", (_req, res) => {
     res.json(storage.getDataProducts());

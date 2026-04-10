@@ -220,6 +220,7 @@ export interface IStorage {
   getClientByEmail(email: string): Client | undefined;
   createClient(data: InsertClient): Client;
   updateClient(id: number, data: Partial<InsertClient>): Client | undefined;
+  deleteClient(id: number): void;
 
   // Territories
   getTerritories(): Territory[];
@@ -314,6 +315,15 @@ export class SQLiteStorage implements IStorage {
   }
   updateClient(id: number, data: Partial<InsertClient>) {
     return db.update(clients).set(data).where(eq(clients.id, id)).returning().get();
+  }
+  deleteClient(id: number) {
+    db.delete(dataSubscriptions).where(eq(dataSubscriptions.clientId, id)).run();
+    db.delete(plaidTransfers).where(eq(plaidTransfers.clientId, id)).run();
+    db.delete(plaidItems).where(eq(plaidItems.clientId, id)).run();
+    db.delete(leads).where(eq(leads.clientId, id)).run();
+    db.delete(depositTransactions).where(eq(depositTransactions.clientId, id)).run();
+    db.delete(territories).where(eq(territories.clientId, id)).run();
+    db.delete(clients).where(eq(clients.id, id)).run();
   }
 
   getTerritories() {

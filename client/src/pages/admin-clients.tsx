@@ -7,9 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Edit2, Search, Plus, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Users, Edit2, Search, Plus, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 import type { Client, Industry, Territory } from "@shared/schema";
 
 export default function AdminClients() {
@@ -21,6 +25,7 @@ export default function AdminClients() {
   const [importOpen, setImportOpen] = useState<Client | null>(null);
   const [importTerritoryId, setImportTerritoryId] = useState("");
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; total: number; errors: string[] } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
   const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
@@ -47,6 +52,22 @@ export default function AdminClients() {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setAddLeadOpen(false);
       toast({ title: "Lead added successfully" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/admin/clients/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      setDeleteTarget(null);
+      toast({ title: "Client deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -131,6 +152,9 @@ export default function AdminClients() {
                         <FileSpreadsheet className="w-3 h-3 mr-1" /> Import
                       </Button>
                     )}
+                    <Button size="sm" variant="outline" className="text-xs h-7 text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(c)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -338,6 +362,26 @@ export default function AdminClients() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Delete Client Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.firstName} {deleteTarget?.lastName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this client and ALL their associated data including territories, leads, deposits, bank connections, and subscriptions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete Client"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
