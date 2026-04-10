@@ -1144,13 +1144,15 @@ statsObserver.observe(statsBar);
 
 
 <!-- ─── CONVERSATIONAL ONBOARDING OVERLAY ─────────────────────────────────── -->
-<div id="ob-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:500;" onclick="closeOnboarding(event)"></div>
+<div id="ob-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)closeOnboarding()"></div>
 
 <div id="ob-panel" style="
-  display:none;position:fixed;top:0;right:0;bottom:0;width:100%;max-width:520px;
-  background:#0D1220;border-left:1px solid #1E2D45;z-index:501;
-  overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,0.6);
-  transform:translateX(100%);transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  display:none;position:fixed;
+  top:50%;left:50%;transform:translate(-50%,-60%) scale(0.96);
+  width:100%;max-width:520px;max-height:90svh;
+  background:#0D1220;border:1px solid #1E2D45;border-radius:1.25rem;z-index:501;
+  overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.8),0 0 0 1px rgba(37,99,235,0.1);
+  opacity:0;transition:opacity 0.3s cubic-bezier(0.16,1,0.3,1),transform 0.3s cubic-bezier(0.16,1,0.3,1);
 ">
   <!-- Header -->
   <div style="
@@ -1317,23 +1319,30 @@ function startOnboarding() {
   ob = { step:0, city:'', state:'', stateCode:'', firstName:'', lastName:'',
          email:'', phone:'', password:'', depositAmount:0, depositTier:'',
          clientId:null, authData:null };
-  document.getElementById('ob-backdrop').style.display = 'block';
+  const backdrop = document.getElementById('ob-backdrop');
   const panel = document.getElementById('ob-panel');
+  backdrop.style.display = 'flex';
   panel.style.display = 'block';
-  requestAnimationFrame(() => { panel.style.transform = 'translateX(0)'; });
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      panel.style.opacity = '1';
+      panel.style.transform = 'translate(-50%,-50%) scale(1)';
+    });
+  });
   document.body.style.overflow = 'hidden';
   renderStep(0);
 }
 
 function closeOnboarding(e) {
-  if (e && e.target !== document.getElementById('ob-backdrop')) return;
+  if (e && e.target !== document.getElementById('ob-backdrop') && !e.target.closest('#ob-backdrop')) return;
   const panel = document.getElementById('ob-panel');
-  panel.style.transform = 'translateX(100%)';
+  panel.style.opacity = '0';
+  panel.style.transform = 'translate(-50%,-50%) scale(0.96)';
   setTimeout(() => {
     panel.style.display = 'none';
     document.getElementById('ob-backdrop').style.display = 'none';
     document.body.style.overflow = '';
-  }, 400);
+  }, 300);
 }
 
 function setProgress(step) {
