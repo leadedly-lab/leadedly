@@ -398,6 +398,40 @@ export function registerRoutes(httpServer: Server, app: Express) {
   });
   app.post("/api/territories", (req, res) => {
     try {
+      const { clientId, industryId, state, city } = req.body;
+
+      // Enforce territory exclusivity within the same industry
+      const allTerritories = storage.getTerritories();
+      const sameIndustry = allTerritories.filter(t => t.industryId === Number(industryId) && t.clientId !== Number(clientId));
+
+      const requestedCity = (city || "").trim();
+      const isStatewide = requestedCity === "Statewide";
+
+      for (const existing of sameIndustry) {
+        if (existing.state !== state) continue;
+
+        // If requesting statewide, block if ANY territory exists in that state for same industry
+        if (isStatewide) {
+          return res.status(409).json({
+            error: `${state} already has a territory claimed by another client in this industry. Statewide territory is not available.`,
+          });
+        }
+
+        // If an existing statewide territory exists, block any new territory in that state
+        if (existing.city === "Statewide") {
+          return res.status(409).json({
+            error: `${state} is already claimed as a statewide territory by another client in this industry.`,
+          });
+        }
+
+        // If requesting a specific city, block if that exact city is taken
+        if (existing.city.toLowerCase() === requestedCity.toLowerCase()) {
+          return res.status(409).json({
+            error: `${requestedCity}, ${state} is already claimed by another client in this industry.`,
+          });
+        }
+      }
+
       const t = storage.createTerritory(req.body);
       res.json(t);
     } catch (e) {
