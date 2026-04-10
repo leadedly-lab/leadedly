@@ -991,6 +991,15 @@ export function registerRoutes(httpServer: Server, app: Express) {
     });
   });
 
+  // ─── Delete Territory (Admin) ───────────────────────────────────────────────
+  app.delete("/api/admin/territories/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const territory = storage.getTerritory(id);
+    if (!territory) return res.status(404).json({ error: "Territory not found" });
+    storage.deleteTerritory(id);
+    res.json({ ok: true });
+  });
+
   // ─── Delete Client (Admin) ─────────────────────────────────────────────────
   app.delete("/api/admin/clients/:id", (req, res) => {
     const id = Number(req.params.id);

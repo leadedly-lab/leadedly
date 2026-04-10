@@ -6,10 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, DollarSign, BarChart2, Plus } from "lucide-react";
+import { MapPin, DollarSign, BarChart2, Plus, Trash2 } from "lucide-react";
 import type { Territory, Client, Industry } from "@shared/schema";
 
 const US_STATES = [
@@ -27,6 +31,7 @@ export default function AdminTerritories() {
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
   const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", depositAmount: "2500", entireState: false });
+  const [deleteTarget, setDeleteTarget] = useState<Territory | null>(null);
 
   const { data: territories = [], isLoading } = useQuery<Territory[]>({ queryKey: ["/api/territories"] });
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["/api/clients"] });
@@ -55,6 +60,22 @@ export default function AdminTerritories() {
       queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
       setStatsOpen(null);
       toast({ title: "Territory stats updated" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/admin/territories/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      setDeleteTarget(null);
+      toast({ title: "Territory deleted" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -136,6 +157,9 @@ export default function AdminTerritories() {
                       </Button>
                       <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setStatsOpen(t); setStatsForm({ monthlyAdSpend: String(t.monthlyAdSpend), monthlyLeadsGenerated: String(t.monthlyLeadsGenerated), monthlyLeadRevenue: String(t.monthlyLeadRevenue) }); }} data-testid={`button-stats-${t.id}`}>
                         <BarChart2 className="w-3 h-3 mr-1" /> Stats
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-xs h-7 text-red-400 hover:text-red-300" onClick={() => setDeleteTarget(t)}>
+                        <Trash2 className="w-3 h-3 mr-1" /> Delete
                       </Button>
                     </div>
                   </td>
@@ -308,6 +332,27 @@ export default function AdminTerritories() {
           </DialogContent>
         )}
       </Dialog>
+
+      {/* Delete Territory Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget ? (deleteTarget.city === "Statewide" ? `${deleteTarget.state} — Entire State` : `${deleteTarget.city}, ${deleteTarget.state}`) : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this territory and all associated leads and deposit transactions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete Territory"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -228,6 +228,7 @@ export interface IStorage {
   getTerritory(id: number): Territory | undefined;
   createTerritory(data: InsertTerritory): Territory;
   updateTerritory(id: number, data: Partial<InsertTerritory>): Territory | undefined;
+  deleteTerritory(id: number): void;
 
   // Leads
   getLeads(): Lead[];
@@ -341,6 +342,11 @@ export class SQLiteStorage implements IStorage {
   }
   updateTerritory(id: number, data: Partial<InsertTerritory>) {
     return db.update(territories).set(data).where(eq(territories.id, id)).returning().get();
+  }
+  deleteTerritory(id: number) {
+    db.delete(leads).where(eq(leads.territoryId, id)).run();
+    db.delete(depositTransactions).where(eq(depositTransactions.territoryId, id)).run();
+    db.delete(territories).where(eq(territories.id, id)).run();
   }
 
   getLeads() {
