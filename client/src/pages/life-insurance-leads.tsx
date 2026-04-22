@@ -18,8 +18,10 @@ export default function LifeInsuranceLeadsLanding() {
   const { theme, toggle } = useTheme();
 
   function goToOnboarding() {
-    // Pre-select Life Insurance (industry ID 3) via URL param; app uses hash routing
-    window.location.hash = "#/onboard?industry=3";
+    // Pre-select Life Insurance (industry ID 3) via sessionStorage
+    // (hash routing doesn't handle query strings cleanly)
+    try { sessionStorage.setItem("preselectIndustryId", "3"); } catch {}
+    window.location.hash = "#/onboard";
   }
 
   return (

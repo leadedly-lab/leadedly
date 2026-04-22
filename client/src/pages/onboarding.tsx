@@ -92,18 +92,20 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
 
   const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
 
-  // Pre-select industry from URL query string (e.g. /onboard?industry=3)
+  // Pre-select industry from sessionStorage (set by landing pages before redirect)
   useEffect(() => {
     if (form.industryId || !industries.length) return;
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
-    const queryStr = hash.includes("?") ? hash.split("?")[1] : "";
-    const params = new URLSearchParams(queryStr);
-    const preselectId = Number(params.get("industry"));
+    let preselectId = 0;
+    try {
+      const stored = sessionStorage.getItem("preselectIndustryId");
+      if (stored) preselectId = Number(stored);
+    } catch {}
     if (preselectId) {
       const ind = industries.find(i => i.id === preselectId);
       if (ind) {
         setForm(f => ({ ...f, industryId: ind.id, industryName: ind.name }));
         setStep("city"); // skip past the industry selection step
+        try { sessionStorage.removeItem("preselectIndustryId"); } catch {}
       }
     }
   }, [industries]);
