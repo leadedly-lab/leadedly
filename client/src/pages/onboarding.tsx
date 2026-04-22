@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,22 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
   });
 
   const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
+
+  // Pre-select industry from URL query string (e.g. /onboard?industry=3)
+  useEffect(() => {
+    if (form.industryId || !industries.length) return;
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const queryStr = hash.includes("?") ? hash.split("?")[1] : "";
+    const params = new URLSearchParams(queryStr);
+    const preselectId = Number(params.get("industry"));
+    if (preselectId) {
+      const ind = industries.find(i => i.id === preselectId);
+      if (ind) {
+        setForm(f => ({ ...f, industryId: ind.id, industryName: ind.name }));
+        setStep("city"); // skip past the industry selection step
+      }
+    }
+  }, [industries]);
 
   const stepOrder: Step[] = ["industry", "city", "team", "cities", "spend", "name", "company", "phone", "title", "email", "slides", "done"];
   const stepIndex = stepOrder.indexOf(step);

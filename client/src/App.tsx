@@ -14,6 +14,7 @@ import AdminLayout from "@/pages/admin-layout";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import TermsOfService from "@/pages/terms-of-service";
 import EmailVerification from "@/pages/email-verification";
+import LifeInsuranceLeadsLanding from "@/pages/life-insurance-leads";
 import NotFound from "@/pages/not-found";
 
 function AppContent() {
@@ -23,6 +24,7 @@ function AppContent() {
       <Router hook={useHashLocation}>
         <Switch>
           <Route path="/onboard" component={OnboardingPage} />
+          <Route path="/life-insurance-leads" component={LifeInsuranceLeadsLanding} />
           <Route path="/privacy" component={PrivacyPolicy} />
           <Route path="/terms" component={TermsOfService} />
           <Route component={LoginPage} />
