@@ -28,7 +28,7 @@ const NAV = [
   { label: "Territories", href: "/territories", icon: MapPin },
   { label: "Deposits", href: "/deposits", icon: Wallet },
   { label: "Industries & Fees", href: "/industries", icon: Star },
-  { label: "ACH / Plaid", href: "/plaid", icon: Landmark },
+  { label: "ACH / Stripe", href: "/plaid", icon: Landmark },
   { label: "Data Products", href: "/data-products", icon: Database },
   { label: "MFA Security", href: "/mfa", icon: ShieldCheck },
 ];

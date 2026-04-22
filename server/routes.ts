@@ -5,14 +5,11 @@ import * as QRCode from "qrcode";
 import { generateOtp, sendOtpEmail, sendVerificationEmail } from "./email";
 import { storage, sqlite } from "./storage";
 import { getTerritoryPrice, getCityPopulation, getPricingTiers } from "./territory-pricing";
-import {
-  createLinkToken,
-  exchangePublicToken,
-  getAuthAccounts,
-  initiateTransfer,
-  getTransferStatus,
-  isPlaidConfigured,
-} from "./plaid";
+// NOTE: Plaid integration has been replaced by Stripe (ACH via Financial Connections).
+// The Plaid helper module and DB columns remain in place for possible rollback,
+// but none of the routes below call into it.
+import { stripe, isStripeConfigured, STRIPE_WEBHOOK_SECRET } from "./stripe";
+import type Stripe from "stripe";
 
 const OOC_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const OOC_FEE = 25;
@@ -22,46 +19,49 @@ const OOC_CHECK_INTERVAL_MS = 5 * 60 * 1000; // check every 5 minutes
 // ─── Auto-Replenish Helper ──────────────────────────────────────────────────
 // Called server-side whenever a fee is deducted from a territory balance.
 // If the resulting balance is below $400 and the client has auto-replenish
-// enabled, it silently initiates an ACH pull.
+// enabled, it silently initiates a Stripe ACH PaymentIntent.
 async function checkAndAutoReplenish(territoryId: number, clientId: number) {
-  if (!isPlaidConfigured) return;
+  if (!isStripeConfigured) return;
   const territory = storage.getTerritory(territoryId);
   if (!territory || territory.depositBalance >= LOW_BALANCE_THRESHOLD) return;
-  const plaidItem = storage.getPlaidItem(clientId);
-  if (!plaidItem || !plaidItem.autoReplenishEnabled) return;
+  const client = storage.getClient(clientId);
+  if (!client || !client.stripeCustomerId || !client.stripePaymentMethodId) return;
+  if (!client.autoReplenishEnabled) return;
+  const amount = client.replenishAmount || 1000;
   try {
-    const transfer = await initiateTransfer({
-      accessToken: plaidItem.accessToken,
-      accountId: plaidItem.accountId,
-      amount: plaidItem.replenishAmount,
-      description: "Leadedly Replenish",
-      clientId,
+    const pi = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: "usd",
+      customer: client.stripeCustomerId,
+      payment_method: client.stripePaymentMethodId,
+      payment_method_types: ["us_bank_account"],
+      confirm: true,
+      mandate_data: {
+        customer_acceptance: {
+          type: "online",
+          online: {
+            ip_address: "0.0.0.0",
+            user_agent: "Leadedly-Server",
+          },
+        },
+      },
+      description: `Auto-replenish — ${territory.city}, ${territory.state}`,
+      metadata: {
+        clientId: String(clientId),
+        territoryId: String(territoryId),
+        isAutoReplenish: "true",
+      },
     });
-    storage.createPlaidTransfer({
+    storage.createStripeDeposit({
       clientId,
       territoryId,
-      transferId: transfer.id,
-      amount: plaidItem.replenishAmount,
-      status: transfer.status,
-      type: "debit",
+      paymentIntentId: pi.id,
+      amount,
+      status: pi.status === "succeeded" ? "settled" : pi.status === "processing" ? "processing" : "pending",
       description: `Auto-replenish — ${territory.city}, ${territory.state}`,
       isAutoReplenish: true,
+      settledAt: null,
     });
-    const isSandbox = process.env.PLAID_ENV === "sandbox";
-    if (isSandbox || transfer.status === "settled") {
-      const refreshed = storage.getTerritory(territoryId)!;
-      const newBalance = refreshed.depositBalance + plaidItem.replenishAmount;
-      storage.updateTerritory(territoryId, { depositBalance: newBalance });
-      storage.createDepositTransaction({
-        territoryId,
-        clientId,
-        type: "deposit",
-        amount: plaidItem.replenishAmount,
-        description: `Auto-replenish via Plaid ACH — ${territory.city}, ${territory.state}`,
-        confirmedBy: "Plaid Auto-Replenish",
-      });
-      storage.updatePlaidTransferStatus(transfer.id, "settled", Date.now());
-    }
   } catch (e: any) {
     console.error(`[AutoReplenish] Territory ${territoryId}:`, e.message);
   }
@@ -745,153 +745,230 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json({ totalBalance, totalLeads, closedLeads, oocLeads, newLeads, lowBalance, territoriesCount: clientTerritories.length });
   });
 
-  // ─── Plaid ──────────────────────────────────────────────────────────────────
+  // ─── Stripe ─────────────────────────────────────────────────────────────────
 
-  // GET /api/plaid/status — returns whether Plaid is configured + client's linked bank
-  app.get("/api/plaid/status/:clientId", (req, res) => {
-    const clientId = Number(req.params.clientId);
-    const item = storage.getPlaidItem(clientId);
-    const client = storage.getClient(clientId);
+  // GET /api/stripe/config — return the publishable key so the frontend can
+  // initialize Stripe.js without a build-time env var.
+  app.get("/api/stripe/config", (_req, res) => {
     res.json({
-      configured: isPlaidConfigured,
-      linked: !!item,
-      otpVerified: !!(client?.otpVerified), // session must be OTP-verified to use Plaid Link
-      item: item
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
+      configured: isStripeConfigured,
+    });
+  });
+
+  // GET /api/stripe/status/:clientId — current link status + auto-replenish prefs
+  app.get("/api/stripe/status/:clientId", (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const client = storage.getClient(clientId);
+    const linked = !!(client?.stripePaymentMethodId);
+    res.json({
+      configured: isStripeConfigured,
+      linked,
+      otpVerified: !!(client?.otpVerified),
+      item: linked
         ? {
-            accountName: item.accountName,
-            accountMask: item.accountMask,
-            institutionName: item.institutionName,
-            autoReplenishEnabled: item.autoReplenishEnabled,
-            replenishAmount: item.replenishAmount,
+            institutionName: client?.stripeBankName || "Bank Account",
+            accountMask: client?.stripeBankLast4 || "",
+            accountName: "Checking",
+            autoReplenishEnabled: !!client?.autoReplenishEnabled,
+            replenishAmount: client?.replenishAmount ?? 1000,
           }
         : null,
     });
   });
 
-  // POST /api/plaid/create-link-token — frontend calls this to open Plaid Link
-  app.post("/api/plaid/create-link-token", async (req, res) => {
-    if (!isPlaidConfigured) {
-      return res.status(503).json({ error: "Plaid not configured. Add PLAID_CLIENT_ID and PLAID_SECRET to .env" });
+  // POST /api/stripe/create-financial-connection-session
+  // Creates a Stripe Customer if needed, then creates a Financial Connections Session.
+  app.post("/api/stripe/create-financial-connection-session", async (req, res) => {
+    if (!isStripeConfigured) {
+      return res.status(503).json({ error: "Stripe not configured. Set STRIPE_SECRET_KEY in environment." });
     }
     const { clientId } = req.body;
     const client = storage.getClient(Number(clientId));
     if (!client) return res.status(404).json({ error: "Client not found" });
     try {
-      const linkToken = await createLinkToken(clientId, `${client.firstName} ${client.lastName}`);
-      res.json({ link_token: linkToken });
-    } catch (e: any) {
-      console.error("Plaid createLinkToken error:", e?.response?.data || e.message);
-      res.status(500).json({ error: "Failed to create Plaid link token", detail: e?.response?.data || e.message });
-    }
-  });
+      let customerId = client.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: client.email,
+          name: `${client.firstName} ${client.lastName}`,
+          phone: client.phone,
+          metadata: {
+            clientId: String(client.id),
+            companyName: client.companyName,
+          },
+        });
+        customerId = customer.id;
+        storage.updateClient(client.id, { stripeCustomerId: customerId } as any);
+      }
 
-  // POST /api/plaid/exchange-token — called after user completes Plaid Link
-  app.post("/api/plaid/exchange-token", async (req, res) => {
-    if (!isPlaidConfigured) {
-      return res.status(503).json({ error: "Plaid not configured" });
-    }
-    const { clientId, publicToken, accountId, institutionName } = req.body;
-    try {
-      const { accessToken, itemId } = await exchangePublicToken(publicToken);
-      // Get account details
-      const authData = await getAuthAccounts(accessToken);
-      const account = authData.accounts.find((a: any) => a.account_id === accountId) || authData.accounts[0];
-      const item = storage.upsertPlaidItem({
-        clientId: Number(clientId),
-        accessToken,
-        itemId,
-        accountId: account.account_id,
-        accountName: account.name || "Checking",
-        accountMask: account.mask || "",
-        institutionName: institutionName || "",
-        autoReplenishEnabled: true,
-        replenishAmount: 1000,
+      const session = await stripe.financialConnections.sessions.create({
+        account_holder: { type: "customer", customer: customerId },
+        permissions: ["payment_method", "balances"],
+        filters: { countries: ["US"] },
       });
-      res.json({ ok: true, item: { accountName: item.accountName, accountMask: item.accountMask, institutionName: item.institutionName } });
+
+      res.json({ client_secret: session.client_secret, sessionId: session.id });
     } catch (e: any) {
-      console.error("Plaid exchange error:", e?.response?.data || e.message);
-      res.status(500).json({ error: "Failed to link bank account", detail: e?.response?.data || e.message });
+      console.error("Stripe FC session error:", e.message);
+      res.status(500).json({ error: "Failed to create Financial Connections session", detail: e.message });
     }
   });
 
-  // DELETE /api/plaid/unlink/:clientId — remove linked bank
-  app.delete("/api/plaid/unlink/:clientId", (req, res) => {
-    storage.deletePlaidItem(Number(req.params.clientId));
+  // POST /api/stripe/save-bank-account
+  // After the frontend completes the Financial Connections flow it sends us the
+  // account id. We create a PaymentMethod from it, attach to customer, and save.
+  app.post("/api/stripe/save-bank-account", async (req, res) => {
+    if (!isStripeConfigured) {
+      return res.status(503).json({ error: "Stripe not configured" });
+    }
+    const { clientId, financialConnectionAccountId } = req.body;
+    const client = storage.getClient(Number(clientId));
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    if (!client.stripeCustomerId) return res.status(400).json({ error: "No Stripe customer on file" });
+    if (!financialConnectionAccountId) return res.status(400).json({ error: "financialConnectionAccountId required" });
+    try {
+      // Fetch the FC account to get bank name + last4
+      const fcAccount = await stripe.financialConnections.accounts.retrieve(financialConnectionAccountId);
+
+      const paymentMethod = await stripe.paymentMethods.create({
+        type: "us_bank_account",
+        us_bank_account: {
+          financial_connections_account: financialConnectionAccountId,
+        } as any,
+      });
+
+      await stripe.paymentMethods.attach(paymentMethod.id, {
+        customer: client.stripeCustomerId,
+      });
+
+      const bankName = fcAccount.institution_name || "Bank";
+      const last4 = fcAccount.last4 || "";
+
+      storage.updateClient(client.id, {
+        stripeFinancialConnectionId: financialConnectionAccountId,
+        stripePaymentMethodId: paymentMethod.id,
+        stripeBankName: bankName,
+        stripeBankLast4: last4,
+      } as any);
+
+      res.json({
+        ok: true,
+        bank: {
+          institutionName: bankName,
+          accountMask: last4,
+          accountName: "Checking",
+        },
+      });
+    } catch (e: any) {
+      console.error("Stripe save-bank-account error:", e.message);
+      res.status(500).json({ error: "Failed to save bank account", detail: e.message });
+    }
+  });
+
+  // DELETE /api/stripe/unlink/:clientId — clears saved Stripe bank on the client record
+  app.delete("/api/stripe/unlink/:clientId", async (req, res) => {
+    const clientId = Number(req.params.clientId);
+    const client = storage.getClient(clientId);
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    if (isStripeConfigured && client.stripePaymentMethodId) {
+      try { await stripe.paymentMethods.detach(client.stripePaymentMethodId); } catch (_) { /* ignore */ }
+    }
+    storage.updateClient(clientId, {
+      stripePaymentMethodId: null,
+      stripeFinancialConnectionId: null,
+      stripeBankName: null,
+      stripeBankLast4: null,
+    } as any);
     res.json({ ok: true });
   });
 
-  // PATCH /api/plaid/replenish-settings/:clientId — update auto-replenish toggle + amount
-  app.patch("/api/plaid/replenish-settings/:clientId", (req, res) => {
+  // PATCH /api/stripe/replenish-settings/:clientId — toggle + amount
+  app.patch("/api/stripe/replenish-settings/:clientId", (req, res) => {
+    const clientId = Number(req.params.clientId);
     const { autoReplenishEnabled, replenishAmount } = req.body;
-    const item = storage.updatePlaidItem(Number(req.params.clientId), {
+    const updated = storage.updateClient(clientId, {
       autoReplenishEnabled: !!autoReplenishEnabled,
       replenishAmount: Number(replenishAmount),
+    } as any);
+    if (!updated) return res.status(404).json({ error: "Client not found" });
+    res.json({
+      ok: true,
+      item: {
+        autoReplenishEnabled: !!updated.autoReplenishEnabled,
+        replenishAmount: updated.replenishAmount,
+      },
     });
-    if (!item) return res.status(404).json({ error: "No linked bank account found" });
-    res.json({ ok: true, item });
   });
 
-  // POST /api/plaid/deposit — initiate ACH pull for a specific territory
-  app.post("/api/plaid/deposit", async (req, res) => {
-    if (!isPlaidConfigured) {
-      return res.status(503).json({ error: "Plaid not configured" });
+  // POST /api/stripe/deposit — initiate an ACH PaymentIntent for a territory
+  app.post("/api/stripe/deposit", async (req, res) => {
+    if (!isStripeConfigured) {
+      return res.status(503).json({ error: "Stripe not configured" });
     }
     const { clientId, territoryId, amount, isAutoReplenish } = req.body;
     const territory = storage.getTerritory(Number(territoryId));
     if (!territory) return res.status(404).json({ error: "Territory not found" });
-    const plaidItem = storage.getPlaidItem(Number(clientId));
-    if (!plaidItem) return res.status(400).json({ error: "No linked bank account. Please link a bank account first." });
+    const client = storage.getClient(Number(clientId));
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    if (!client.stripeCustomerId || !client.stripePaymentMethodId) {
+      return res.status(400).json({ error: "No linked bank account. Please link a bank account first." });
+    }
     try {
-      const transfer = await initiateTransfer({
-        accessToken: plaidItem.accessToken,
-        accountId: plaidItem.accountId,
-        amount: Number(amount),
-        description: `Leadedly Deposit`,
-        clientId: Number(clientId),
+      const pi = await stripe.paymentIntents.create({
+        amount: Math.round(Number(amount) * 100),
+        currency: "usd",
+        customer: client.stripeCustomerId,
+        payment_method: client.stripePaymentMethodId,
+        payment_method_types: ["us_bank_account"],
+        confirm: true,
+        mandate_data: {
+          customer_acceptance: {
+            type: "online",
+            online: {
+              ip_address: req.ip || "0.0.0.0",
+              user_agent: req.get("user-agent") || "Leadedly",
+            },
+          },
+        },
+        description: `Leadedly deposit — ${territory.city}, ${territory.state}`,
+        metadata: {
+          clientId: String(clientId),
+          territoryId: String(territoryId),
+          isAutoReplenish: isAutoReplenish ? "true" : "false",
+        },
       });
-      // Record the pending transfer
-      storage.createPlaidTransfer({
+
+      storage.createStripeDeposit({
         clientId: Number(clientId),
         territoryId: Number(territoryId),
-        transferId: transfer.id,
+        paymentIntentId: pi.id,
         amount: Number(amount),
-        status: transfer.status,
-        type: "debit",
+        status: pi.status === "succeeded" ? "settled" : pi.status === "processing" ? "processing" : "pending",
         description: `ACH deposit — ${territory.city}, ${territory.state}`,
         isAutoReplenish: !!isAutoReplenish,
+        settledAt: null,
       });
-      // In sandbox mode, Plaid immediately settles — credit the balance
-      // In production, balance is credited on webhook settlement
-      const isSandbox = process.env.PLAID_ENV === "sandbox";
-      if (isSandbox || transfer.status === "settled") {
-        const newBalance = territory.depositBalance + Number(amount);
-        storage.updateTerritory(territory.id, { depositBalance: newBalance });
-        storage.createDepositTransaction({
-          territoryId: territory.id,
-          clientId: Number(clientId),
-          type: "deposit",
-          amount: Number(amount),
-          description: `ACH deposit via Plaid${isAutoReplenish ? " (auto-replenish)" : ""} — ${territory.city}, ${territory.state}`,
-          confirmedBy: "Plaid ACH",
-        });
-        storage.updatePlaidTransferStatus(transfer.id, "settled", Date.now());
-      }
-      res.json({ ok: true, transferId: transfer.id, status: transfer.status });
+
+      res.json({ ok: true, paymentIntentId: pi.id, status: pi.status });
     } catch (e: any) {
-      console.error("Plaid transfer error:", e?.response?.data || e.message);
-      res.status(500).json({ error: e.message || "Transfer failed", detail: e?.response?.data });
+      console.error("Stripe deposit error:", e.message);
+      res.status(500).json({ error: e.message || "Deposit failed" });
     }
   });
 
-  // POST /api/plaid/check-replenish — check all territories for a client and auto-replenish if below $400
-  app.post("/api/plaid/check-replenish/:clientId", async (req, res) => {
-    if (!isPlaidConfigured) {
-      return res.json({ triggered: 0, skipped: "Plaid not configured" });
+  // POST /api/stripe/check-replenish/:clientId — scan territories and auto-pull
+  app.post("/api/stripe/check-replenish/:clientId", async (req, res) => {
+    if (!isStripeConfigured) {
+      return res.json({ triggered: 0, skipped: "Stripe not configured" });
     }
     const clientId = Number(req.params.clientId);
-    const plaidItem = storage.getPlaidItem(clientId);
-    if (!plaidItem || !plaidItem.autoReplenishEnabled) {
-      return res.json({ triggered: 0, reason: plaidItem ? "auto-replenish disabled" : "no linked bank" });
+    const client = storage.getClient(clientId);
+    if (!client || !client.stripePaymentMethodId) {
+      return res.json({ triggered: 0, reason: "no linked bank" });
+    }
+    if (!client.autoReplenishEnabled) {
+      return res.json({ triggered: 0, reason: "auto-replenish disabled" });
     }
     const territories = storage.getTerritoriesByClient(clientId);
     let triggered = 0;
@@ -900,37 +977,7 @@ export function registerRoutes(httpServer: Server, app: Express) {
       if (!territory.active) continue;
       if (territory.depositBalance < LOW_BALANCE_THRESHOLD) {
         try {
-          const transfer = await initiateTransfer({
-            accessToken: plaidItem.accessToken,
-            accountId: plaidItem.accountId,
-            amount: plaidItem.replenishAmount,
-            description: `Leadedly Replenish`,
-            clientId,
-          });
-          storage.createPlaidTransfer({
-            clientId,
-            territoryId: territory.id,
-            transferId: transfer.id,
-            amount: plaidItem.replenishAmount,
-            status: transfer.status,
-            type: "debit",
-            description: `Auto-replenish — ${territory.city}, ${territory.state}`,
-            isAutoReplenish: true,
-          });
-          const isSandbox = process.env.PLAID_ENV === "sandbox";
-          if (isSandbox || transfer.status === "settled") {
-            const newBalance = territory.depositBalance + plaidItem.replenishAmount;
-            storage.updateTerritory(territory.id, { depositBalance: newBalance });
-            storage.createDepositTransaction({
-              territoryId: territory.id,
-              clientId,
-              type: "deposit",
-              amount: plaidItem.replenishAmount,
-              description: `Auto-replenish via Plaid ACH — ${territory.city}, ${territory.state}`,
-              confirmedBy: "Plaid Auto-Replenish",
-            });
-            storage.updatePlaidTransferStatus(transfer.id, "settled", Date.now());
-          }
+          await checkAndAutoReplenish(territory.id, clientId);
           triggered++;
         } catch (e: any) {
           errors.push(`${territory.city}: ${e.message}`);
@@ -940,70 +987,83 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json({ triggered, errors });
   });
 
-  // GET /api/plaid/transfers/:clientId — list ACH transfer history
-  app.get("/api/plaid/transfers/:clientId", (req, res) => {
-    res.json(storage.getPlaidTransfers(Number(req.params.clientId)));
+  // GET /api/stripe/deposits?clientId=N or /api/stripe/deposits/:clientId
+  app.get("/api/stripe/deposits/:clientId", (req, res) => {
+    res.json(storage.getStripeDeposits(Number(req.params.clientId)));
+  });
+  app.get("/api/stripe/deposits", (req, res) => {
+    const clientId = Number(req.query.clientId);
+    if (!clientId) return res.status(400).json({ error: "clientId required" });
+    res.json(storage.getStripeDeposits(clientId));
   });
 
-  // GET /api/admin/plaid-overview — all clients with their Plaid link status
-  app.get("/api/admin/plaid-overview", (req, res) => {
+  // GET /api/admin/stripe-overview — all clients with their Stripe link status
+  app.get("/api/admin/stripe-overview", (_req, res) => {
     const allClients = storage.getClients();
     const result = allClients.map(c => {
-      const item = storage.getPlaidItem(c.id);
-      const transfers = storage.getPlaidTransfers(c.id);
-      const totalAch = transfers.filter(t => t.status === "settled").reduce((sum, t) => sum + t.amount, 0);
+      const deposits = storage.getStripeDeposits(c.id);
+      const totalAch = deposits.filter(d => d.status === "settled").reduce((sum, d) => sum + d.amount, 0);
       return {
         clientId: c.id,
         clientName: `${c.firstName} ${c.lastName}`,
         companyName: c.companyName,
-        linked: !!item,
-        institutionName: item?.institutionName || "",
-        accountMask: item?.accountMask || "",
-        autoReplenishEnabled: item?.autoReplenishEnabled ?? false,
-        replenishAmount: item?.replenishAmount ?? 0,
+        linked: !!c.stripePaymentMethodId,
+        institutionName: c.stripeBankName || "",
+        accountMask: c.stripeBankLast4 || "",
+        autoReplenishEnabled: !!c.autoReplenishEnabled,
+        replenishAmount: c.replenishAmount ?? 0,
         totalAchDeposited: totalAch,
-        pendingTransfers: transfers.filter(t => t.status === "pending").length,
+        pendingTransfers: deposits.filter(d => d.status === "pending" || d.status === "processing").length,
       };
     });
     res.json(result);
   });
 
-  // POST /api/admin/plaid-replenish/:clientId — admin manually triggers replenish for a client
-  app.post("/api/admin/plaid-replenish/:clientId", async (req, res) => {
+  // POST /api/admin/stripe-replenish/:clientId — admin manually triggers replenish
+  app.post("/api/admin/stripe-replenish/:clientId", async (req, res) => {
+    if (!isStripeConfigured) return res.status(503).json({ error: "Stripe not configured" });
     const clientId = Number(req.params.clientId);
-    const plaidItem = storage.getPlaidItem(clientId);
-    if (!plaidItem) return res.status(400).json({ error: "No linked bank account" });
-    if (!isPlaidConfigured) return res.status(503).json({ error: "Plaid not configured" });
+    const client = storage.getClient(clientId);
+    if (!client || !client.stripePaymentMethodId) {
+      return res.status(400).json({ error: "No linked bank account" });
+    }
     const clientTerritories = storage.getTerritoriesByClient(clientId);
     let triggered = 0;
     for (const territory of clientTerritories) {
       if (!territory.active) continue;
       try {
-        const transfer = await initiateTransfer({
-          accessToken: plaidItem.accessToken,
-          accountId: plaidItem.accountId,
-          amount: plaidItem.replenishAmount,
-          description: "Leadedly Replenish",
+        const amount = client.replenishAmount || 1000;
+        const pi = await stripe.paymentIntents.create({
+          amount: Math.round(amount * 100),
+          currency: "usd",
+          customer: client.stripeCustomerId!,
+          payment_method: client.stripePaymentMethodId,
+          payment_method_types: ["us_bank_account"],
+          confirm: true,
+          mandate_data: {
+            customer_acceptance: {
+              type: "online",
+              online: { ip_address: "0.0.0.0", user_agent: "Leadedly-Admin" },
+            },
+          },
+          description: `Admin replenish — ${territory.city}, ${territory.state}`,
+          metadata: {
+            clientId: String(clientId),
+            territoryId: String(territory.id),
+            isAutoReplenish: "false",
+            source: "admin",
+          },
+        });
+        storage.createStripeDeposit({
           clientId,
-        });
-        storage.createPlaidTransfer({
-          clientId, territoryId: territory.id, transferId: transfer.id,
-          amount: plaidItem.replenishAmount, status: transfer.status,
-          type: "debit", description: `Admin replenish — ${territory.city}, ${territory.state}`,
+          territoryId: territory.id,
+          paymentIntentId: pi.id,
+          amount,
+          status: pi.status === "succeeded" ? "settled" : pi.status === "processing" ? "processing" : "pending",
+          description: `Admin replenish — ${territory.city}, ${territory.state}`,
           isAutoReplenish: false,
+          settledAt: null,
         });
-        const isSandbox = process.env.PLAID_ENV === "sandbox";
-        if (isSandbox || transfer.status === "settled") {
-          const newBalance = territory.depositBalance + plaidItem.replenishAmount;
-          storage.updateTerritory(territory.id, { depositBalance: newBalance });
-          storage.createDepositTransaction({
-            territoryId: territory.id, clientId,
-            type: "deposit", amount: plaidItem.replenishAmount,
-            description: `Admin ACH replenish — ${territory.city}, ${territory.state}`,
-            confirmedBy: "Admin",
-          });
-          storage.updatePlaidTransferStatus(transfer.id, "settled", Date.now());
-        }
         triggered++;
       } catch (e: any) {
         console.error("Admin replenish error:", e.message);
@@ -1012,33 +1072,62 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json({ triggered });
   });
 
-  // POST /api/plaid/webhook — Plaid sends transfer status updates here
-  app.post("/api/plaid/webhook", async (req, res) => {
-    const { webhook_type, webhook_code, transfer_id, new_transfer_status } = req.body;
-    if (webhook_type === "TRANSFER" && transfer_id) {
-      const existing = storage.getPlaidTransfer(transfer_id);
-      if (existing && new_transfer_status === "settled") {
-        storage.updatePlaidTransferStatus(transfer_id, "settled", Date.now());
-        // Credit the territory balance on settlement
-        const territory = storage.getTerritory(existing.territoryId);
-        if (territory) {
-          const newBalance = territory.depositBalance + existing.amount;
-          storage.updateTerritory(territory.id, { depositBalance: newBalance });
-          storage.createDepositTransaction({
-            territoryId: territory.id,
-            clientId: existing.clientId,
-            type: "deposit",
-            amount: existing.amount,
-            description: `ACH settled via Plaid${existing.isAutoReplenish ? " (auto-replenish)" : ""} — ${territory.city}, ${territory.state}`,
-            confirmedBy: "Plaid Webhook",
-          });
-        }
-      } else if (existing && ["failed", "cancelled", "returned"].includes(new_transfer_status)) {
-        storage.updatePlaidTransferStatus(transfer_id, new_transfer_status);
-      }
+  // POST /api/stripe/webhook — payment status updates. Raw body is set up in server/index.ts.
+  app.post("/api/stripe/webhook", (req, res) => {
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    if (!STRIPE_WEBHOOK_SECRET) {
+      console.warn("STRIPE_WEBHOOK_SECRET not set — rejecting webhook");
+      return res.status(500).send("Webhook secret not configured");
     }
-    res.json({ ok: true });
+    if (!sig) return res.status(400).send("Missing stripe-signature header");
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body as Buffer, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err: any) {
+      console.error("Stripe webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      if (event.type === "payment_intent.succeeded") {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        const existing = storage.getStripeDeposit(pi.id);
+        if (existing && existing.status !== "settled") {
+          storage.updateStripeDepositStatus(pi.id, "settled", Date.now());
+          const territory = storage.getTerritory(existing.territoryId);
+          if (territory) {
+            const newBalance = territory.depositBalance + existing.amount;
+            storage.updateTerritory(territory.id, { depositBalance: newBalance });
+            storage.createDepositTransaction({
+              territoryId: territory.id,
+              clientId: existing.clientId,
+              type: "deposit",
+              amount: existing.amount,
+              description: `ACH settled via Stripe${existing.isAutoReplenish ? " (auto-replenish)" : ""} — ${territory.city}, ${territory.state}`,
+              confirmedBy: "Stripe Webhook",
+            });
+          }
+        }
+      } else if (event.type === "payment_intent.payment_failed") {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        storage.updateStripeDepositStatus(pi.id, "failed");
+      } else if (event.type === "payment_intent.processing") {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        storage.updateStripeDepositStatus(pi.id, "processing");
+      }
+    } catch (e: any) {
+      console.error("Stripe webhook handler error:", e.message);
+    }
+
+    res.json({ received: true });
   });
+
+  // ─── Plaid (legacy) ─────────────────────────────────────────────────────────
+  // The old /api/plaid/* endpoints have been removed. Bank linking, deposits,
+  // and auto-replenish now flow through /api/stripe/*. The plaid_items and
+  // plaid_transfers tables, plus server/plaid.ts, are left in the repo for
+  // rollback but are no longer referenced at runtime.
 
   // ─── Dashboard Stats ────────────────────────────────────────────────────────
   app.get("/api/stats/admin", (_req, res) => {

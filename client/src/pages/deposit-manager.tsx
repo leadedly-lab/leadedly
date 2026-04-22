@@ -6,7 +6,7 @@ import { Wallet, TrendingDown, AlertTriangle, DollarSign, ArrowDownCircle, Arrow
 import { useLocation } from "wouter";
 import type { Territory, DepositTransaction } from "@shared/schema";
 
-type PlaidStatus = { configured: boolean; linked: boolean; item: any | null };
+type StripeStatus = { configured: boolean; linked: boolean; item: any | null };
 
 function TransactionIcon({ type }: { type: string }) {
   if (type === "deposit") return <ArrowUpCircle className="w-4 h-4 text-green-400 flex-shrink-0" />;
@@ -24,8 +24,8 @@ export default function DepositManager({ clientId }: { clientId: number }) {
     queryKey: [`/api/transactions/client/${clientId}`],
     enabled: !!clientId,
   });
-  const { data: plaidStatus } = useQuery<PlaidStatus>({
-    queryKey: [`/api/plaid/status/${clientId}`],
+  const { data: stripeStatus } = useQuery<StripeStatus>({
+    queryKey: [`/api/stripe/status/${clientId}`],
     enabled: !!clientId,
   });
 
@@ -155,19 +155,19 @@ export default function DepositManager({ clientId }: { clientId: number }) {
           <div>
             <p className="font-medium text-foreground text-sm">Fund via ACH Bank Transfer</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {plaidStatus?.linked
-                ? `Linked: ${plaidStatus.item?.institutionName} ••••${plaidStatus.item?.accountMask} · Auto-replenish ${plaidStatus.item?.autoReplenishEnabled ? "ON" : "OFF"}`
+              {stripeStatus?.linked
+                ? `Linked: ${stripeStatus.item?.institutionName} ••••${stripeStatus.item?.accountMask} · Auto-replenish ${stripeStatus.item?.autoReplenishEnabled ? "ON" : "OFF"}`
                 : "Link your checking account to deposit funds directly via ACH. No credit cards accepted."}
             </p>
           </div>
         </div>
         <Button
           size="sm"
-          variant={plaidStatus?.linked ? "outline" : "default"}
+          variant={stripeStatus?.linked ? "outline" : "default"}
           onClick={() => navigate("/bank")}
           className="flex-shrink-0"
         >
-          {plaidStatus?.linked ? (
+          {stripeStatus?.linked ? (
             <><Zap className="w-4 h-4 mr-1.5" /> Deposit / Settings</>
           ) : (
             <><Landmark className="w-4 h-4 mr-1.5" /> Link Bank Account</>

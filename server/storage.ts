@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { eq, and, desc } from "drizzle-orm";
 import {
   industries, clients, territories, leads, depositTransactions, adminUsers,
-  plaidItems, plaidTransfers, dataProducts, dataSubscriptions,
+  plaidItems, plaidTransfers, stripeDeposits, dataProducts, dataSubscriptions,
   type Industry, type InsertIndustry,
   type Client, type InsertClient,
   type Territory, type InsertTerritory,
@@ -12,6 +12,7 @@ import {
   type AdminUser, type InsertAdminUser,
   type PlaidItem, type InsertPlaidItem,
   type PlaidTransfer, type InsertPlaidTransfer,
+  type StripeDeposit, type InsertStripeDeposit,
   type DataProduct, type InsertDataProduct,
   type DataSubscription, type InsertDataSubscription,
 } from "@shared/schema";
@@ -139,6 +140,19 @@ sqlite.exec(`
     settled_at INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS stripe_deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    territory_id INTEGER NOT NULL,
+    payment_intent_id TEXT NOT NULL UNIQUE,
+    amount REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    description TEXT NOT NULL DEFAULT '',
+    is_auto_replenish INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    settled_at INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS data_products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -177,6 +191,13 @@ for (const col of [
   "ALTER TABLE clients ADD COLUMN tos_agreed_at INTEGER",
   "ALTER TABLE territories ADD COLUMN population INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE territories ADD COLUMN excluded_cities TEXT",
+  "ALTER TABLE clients ADD COLUMN stripe_customer_id TEXT",
+  "ALTER TABLE clients ADD COLUMN stripe_financial_connection_id TEXT",
+  "ALTER TABLE clients ADD COLUMN stripe_payment_method_id TEXT",
+  "ALTER TABLE clients ADD COLUMN stripe_bank_name TEXT",
+  "ALTER TABLE clients ADD COLUMN stripe_bank_last4 TEXT",
+  "ALTER TABLE clients ADD COLUMN auto_replenish_enabled INTEGER NOT NULL DEFAULT 1",
+  "ALTER TABLE clients ADD COLUMN replenish_amount REAL NOT NULL DEFAULT 1000",
 ]) {
   try { sqlite.exec(col); } catch (_) { /* column already exists */ }
 }
@@ -274,6 +295,13 @@ export interface IStorage {
   updatePlaidTransferStatus(transferId: string, status: string, settledAt?: number): PlaidTransfer | undefined;
   getAllPendingTransfers(): PlaidTransfer[];
 
+  // Stripe Deposits
+  getStripeDeposits(clientId: number): StripeDeposit[];
+  getStripeDeposit(paymentIntentId: string): StripeDeposit | undefined;
+  createStripeDeposit(data: InsertStripeDeposit): StripeDeposit;
+  updateStripeDepositStatus(paymentIntentId: string, status: string, settledAt?: number): StripeDeposit | undefined;
+  getAllStripeDeposits(): StripeDeposit[];
+
   // Data Products
   getDataProducts(): DataProduct[];
   getDataProduct(id: number): DataProduct | undefined;
@@ -323,6 +351,7 @@ export class SQLiteStorage implements IStorage {
   }
   deleteClient(id: number) {
     db.delete(dataSubscriptions).where(eq(dataSubscriptions.clientId, id)).run();
+    db.delete(stripeDeposits).where(eq(stripeDeposits.clientId, id)).run();
     db.delete(plaidTransfers).where(eq(plaidTransfers.clientId, id)).run();
     db.delete(plaidItems).where(eq(plaidItems.clientId, id)).run();
     db.delete(leads).where(eq(leads.clientId, id)).run();
@@ -451,6 +480,26 @@ export class SQLiteStorage implements IStorage {
   }
   getAllPendingTransfers() {
     return db.select().from(plaidTransfers).where(eq(plaidTransfers.status, "pending")).all();
+  }
+
+  // Stripe Deposits
+  getStripeDeposits(clientId: number) {
+    return db.select().from(stripeDeposits).where(eq(stripeDeposits.clientId, clientId)).orderBy(desc(stripeDeposits.createdAt)).all();
+  }
+  getStripeDeposit(paymentIntentId: string) {
+    return db.select().from(stripeDeposits).where(eq(stripeDeposits.paymentIntentId, paymentIntentId)).get();
+  }
+  createStripeDeposit(data: InsertStripeDeposit) {
+    const now = Date.now();
+    return db.insert(stripeDeposits).values({ ...data, createdAt: now }).returning().get();
+  }
+  updateStripeDepositStatus(paymentIntentId: string, status: string, settledAt?: number) {
+    const updates: any = { status };
+    if (settledAt) updates.settledAt = settledAt;
+    return db.update(stripeDeposits).set(updates).where(eq(stripeDeposits.paymentIntentId, paymentIntentId)).returning().get();
+  }
+  getAllStripeDeposits() {
+    return db.select().from(stripeDeposits).orderBy(desc(stripeDeposits.createdAt)).all();
   }
 
   // Data Products

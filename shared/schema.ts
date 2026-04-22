@@ -44,6 +44,15 @@ export const clients = sqliteTable("clients", {
   googleSheetUrl: text("google_sheet_url"),
   // TOS
   tosAgreedAt: integer("tos_agreed_at"),
+  // Stripe (replaces Plaid). Plaid columns (if any) remain unused.
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeFinancialConnectionId: text("stripe_financial_connection_id"),
+  stripePaymentMethodId: text("stripe_payment_method_id"),
+  stripeBankName: text("stripe_bank_name"),
+  stripeBankLast4: text("stripe_bank_last4"),
+  // Per-client auto-replenish preferences (moved off plaid_items table)
+  autoReplenishEnabled: integer("auto_replenish_enabled", { mode: "boolean" }).notNull().default(true),
+  replenishAmount: real("replenish_amount").notNull().default(1000),
 });
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 export type InsertClient = z.infer<typeof insertClientSchema>;
@@ -153,6 +162,24 @@ export const plaidTransfers = sqliteTable("plaid_transfers", {
 export const insertPlaidTransferSchema = createInsertSchema(plaidTransfers).omit({ id: true, createdAt: true });
 export type InsertPlaidTransfer = z.infer<typeof insertPlaidTransferSchema>;
 export type PlaidTransfer = typeof plaidTransfers.$inferSelect;
+
+// ─── Stripe Deposits ──────────────────────────────────────────────────────────
+// Tracks every ACH PaymentIntent initiated via Stripe
+export const stripeDeposits = sqliteTable("stripe_deposits", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").notNull(),
+  territoryId: integer("territory_id").notNull(),
+  paymentIntentId: text("payment_intent_id").notNull().unique(),
+  amount: real("amount").notNull(),
+  status: text("status").notNull().default("pending"), // pending | processing | settled | failed | cancelled
+  description: text("description").notNull().default(""),
+  isAutoReplenish: integer("is_auto_replenish", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull().$defaultFn(() => Date.now()),
+  settledAt: integer("settled_at"),
+});
+export const insertStripeDepositSchema = createInsertSchema(stripeDeposits).omit({ id: true, createdAt: true });
+export type InsertStripeDeposit = z.infer<typeof insertStripeDepositSchema>;
+export type StripeDeposit = typeof stripeDeposits.$inferSelect;
 
 // ─── Data Products ─────────────────────────────────────────────────────────────
 export const dataProducts = sqliteTable("data_products", {

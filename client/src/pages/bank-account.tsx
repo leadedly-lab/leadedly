@@ -11,15 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { PlaidLinkButton } from "@/components/plaid-link";
+import { StripeLinkButton } from "@/components/stripe-link";
 import type { Territory } from "@shared/schema";
-type PlaidTransfer = { id: number; clientId: number; territoryId: number; transferId: string; amount: number; status: string; type: string; description: string; isAutoReplenish: boolean; createdAt: number; settledAt: number | null };
+type StripeDeposit = { id: number; clientId: number; territoryId: number; paymentIntentId: string; amount: number; status: string; description: string; isAutoReplenish: boolean; createdAt: number; settledAt: number | null };
 import {
   Landmark, RefreshCw, Trash2, CheckCircle2, AlertTriangle,
   ArrowUpCircle, Clock, XCircle, Zap, DollarSign, Settings2, Info, Lock
 } from "lucide-react";
 
-type PlaidStatus = {
+type StripeStatus = {
   configured: boolean;
   linked: boolean;
   otpVerified: boolean;
@@ -35,11 +35,10 @@ type PlaidStatus = {
 function TransferStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: any; icon: any }> = {
     pending: { label: "Pending", variant: "secondary", icon: Clock },
-    posted: { label: "Posted", variant: "outline", icon: ArrowUpCircle },
+    processing: { label: "Processing", variant: "outline", icon: ArrowUpCircle },
     settled: { label: "Settled", variant: "default", icon: CheckCircle2 },
     failed: { label: "Failed", variant: "destructive", icon: XCircle },
     cancelled: { label: "Cancelled", variant: "destructive", icon: XCircle },
-    returned: { label: "Returned", variant: "destructive", icon: XCircle },
   };
   const config = map[status] || map.pending;
   const Icon = config.icon;
@@ -59,32 +58,32 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   const [autoReplenishEnabled, setAutoReplenishEnabled] = useState(true);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  const { data: plaidStatus, isLoading: statusLoading } = useQuery<PlaidStatus>({
-    queryKey: [`/api/plaid/status/${clientId}`],
+  const { data: stripeStatus, isLoading: statusLoading } = useQuery<StripeStatus>({
+    queryKey: [`/api/stripe/status/${clientId}`],
     enabled: !!clientId,
   });
 
   useEffect(() => {
-    if (plaidStatus?.item) {
-      setAutoReplenishEnabled(plaidStatus.item.autoReplenishEnabled);
-      setReplenishAmount(String(plaidStatus.item.replenishAmount));
+    if (stripeStatus?.item) {
+      setAutoReplenishEnabled(stripeStatus.item.autoReplenishEnabled);
+      setReplenishAmount(String(stripeStatus.item.replenishAmount));
     }
-  }, [plaidStatus?.item?.autoReplenishEnabled, plaidStatus?.item?.replenishAmount]);
+  }, [stripeStatus?.item?.autoReplenishEnabled, stripeStatus?.item?.replenishAmount]);
 
   const { data: territories = [] } = useQuery<Territory[]>({
     queryKey: [`/api/territories/client/${clientId}`],
     enabled: !!clientId,
   });
 
-  const { data: transfers = [] } = useQuery<PlaidTransfer[]>({
-    queryKey: [`/api/plaid/transfers/${clientId}`],
+  const { data: transfers = [] } = useQuery<StripeDeposit[]>({
+    queryKey: [`/api/stripe/deposits/${clientId}`],
     enabled: !!clientId,
   });
 
   // ACH Deposit mutation
   const depositMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/plaid/deposit", {
+      const res = await apiRequest("POST", "/api/stripe/deposit", {
         clientId,
         territoryId: Number(selectedTerritoryId),
         amount: Number(depositAmount),
@@ -96,7 +95,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/territories/client/${clientId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/plaid/transfers/${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stripe/deposits/${clientId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/transactions/client/${clientId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/stats/client/${clientId}`] });
       setDepositOpen(false);
@@ -111,11 +110,11 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   // Unlink bank mutation
   const unlinkMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("DELETE", `/api/plaid/unlink/${clientId}`, undefined);
+      const res = await apiRequest("DELETE", `/api/stripe/unlink/${clientId}`, undefined);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/plaid/status/${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stripe/status/${clientId}`] });
       toast({ title: "Bank account unlinked" });
     },
   });
@@ -123,7 +122,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   // Save replenish settings
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("PATCH", `/api/plaid/replenish-settings/${clientId}`, {
+      const res = await apiRequest("PATCH", `/api/stripe/replenish-settings/${clientId}`, {
         autoReplenishEnabled,
         replenishAmount: Number(replenishAmount),
       });
@@ -132,7 +131,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/plaid/status/${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stripe/status/${clientId}`] });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2500);
       toast({ title: "Auto-replenish settings saved" });
@@ -143,12 +142,12 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   // Manual replenish check
   const replenishCheckMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/plaid/check-replenish/${clientId}`, {});
+      const res = await apiRequest("POST", `/api/stripe/check-replenish/${clientId}`, {});
       return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [`/api/territories/client/${clientId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/plaid/transfers/${clientId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/stripe/deposits/${clientId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/transactions/client/${clientId}`] });
       if (data.triggered > 0) {
         toast({ title: `Auto-replenish triggered`, description: `${data.triggered} territory${data.triggered > 1 ? "s" : ""} replenished.` });
@@ -178,8 +177,8 @@ export default function BankAccount({ clientId }: { clientId: number }) {
         </p>
       </div>
 
-      {/* OTP session gate — Plaid Link is only accessible after email verification */}
-      {plaidStatus && !plaidStatus.otpVerified && (
+      {/* OTP session gate — bank linking is only accessible after email verification */}
+      {stripeStatus && !stripeStatus.otpVerified && (
         <Alert className="border-yellow-500/30 bg-yellow-500/5">
           <Lock className="w-4 h-4 text-yellow-400" />
           <AlertDescription className="text-sm text-yellow-300">
@@ -188,14 +187,14 @@ export default function BankAccount({ clientId }: { clientId: number }) {
         </Alert>
       )}
 
-      {/* Plaid not configured warning */}
-      {!plaidStatus?.configured && (
+      {/* Stripe not configured warning */}
+      {!stripeStatus?.configured && (
         <Alert className="border-yellow-500/30 bg-yellow-500/5">
           <Info className="w-4 h-4 text-yellow-400" />
           <AlertDescription className="text-sm text-yellow-300">
-            Plaid credentials not configured. Add <code className="bg-muted px-1 rounded text-xs">PLAID_CLIENT_ID</code> and{" "}
-            <code className="bg-muted px-1 rounded text-xs">PLAID_SECRET</code> to your <code className="bg-muted px-1 rounded text-xs">.env</code> file,
-            then restart the server.
+            Stripe credentials not configured. Add <code className="bg-muted px-1 rounded text-xs">STRIPE_SECRET_KEY</code>,{" "}
+            <code className="bg-muted px-1 rounded text-xs">STRIPE_PUBLISHABLE_KEY</code>, and{" "}
+            <code className="bg-muted px-1 rounded text-xs">STRIPE_WEBHOOK_SECRET</code> to your environment, then restart the server.
           </AlertDescription>
         </Alert>
       )}
@@ -208,7 +207,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {plaidStatus?.linked && plaidStatus.item ? (
+          {stripeStatus?.linked && stripeStatus.item ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 rounded-xl bg-muted/40 border border-border">
                 <div className="flex items-center gap-3">
@@ -216,9 +215,9 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                     <Landmark className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-sm text-foreground">{plaidStatus.item.institutionName}</p>
+                    <p className="font-semibold text-sm text-foreground">{stripeStatus.item.institutionName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {plaidStatus.item.accountName} ••••{plaidStatus.item.accountMask}
+                      {stripeStatus.item.accountName} ••••{stripeStatus.item.accountMask}
                     </p>
                   </div>
                 </div>
@@ -243,9 +242,9 @@ export default function BankAccount({ clientId }: { clientId: number }) {
               <div className="flex gap-2 flex-wrap">
                 <Button
                   onClick={() => setDepositOpen(true)}
-                  disabled={territories.length === 0 || !plaidStatus?.otpVerified}
+                  disabled={territories.length === 0 || !stripeStatus?.otpVerified}
                   data-testid="button-ach-deposit"
-                  title={!plaidStatus?.otpVerified ? "Email verification required" : undefined}
+                  title={!stripeStatus?.otpVerified ? "Email verification required" : undefined}
                 >
                   <DollarSign className="w-4 h-4 mr-2" /> Deposit Funds via ACH
                 </Button>
@@ -267,7 +266,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                   <AlertDescription className="text-sm text-red-300">
                     {lowBalanceTerritories.length} territory{lowBalanceTerritories.length > 1 ? "ies are" : " is"} below $400:{" "}
                     {lowBalanceTerritories.map(t => t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`).join("; ")}.
-                    {plaidStatus.item.autoReplenishEnabled
+                    {stripeStatus.item.autoReplenishEnabled
                       ? " Auto-replenish will trigger automatically."
                       : " Enable auto-replenish below to fund automatically."}
                   </AlertDescription>
@@ -285,12 +284,12 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                   Link your checking account to fund territories via ACH bank transfer. No credit cards accepted.
                 </p>
               </div>
-              <PlaidLinkButton
+              <StripeLinkButton
                 clientId={clientId}
-                onSuccess={() => queryClient.invalidateQueries({ queryKey: [`/api/plaid/status/${clientId}`] })}
-                className={!plaidStatus?.otpVerified ? "opacity-50 pointer-events-none" : ""}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: [`/api/stripe/status/${clientId}`] })}
+                className={!stripeStatus?.otpVerified ? "opacity-50 pointer-events-none" : ""}
               />
-              {!plaidStatus?.otpVerified && (
+              {!stripeStatus?.otpVerified && (
                 <p className="text-xs text-yellow-400 flex items-center gap-1 mt-2">
                   <Lock className="w-3 h-3" /> Sign out and back in to enable bank linking
                 </p>
@@ -301,7 +300,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
       </Card>
 
       {/* Auto-Replenish Settings */}
-      {plaidStatus?.linked && (
+      {stripeStatus?.linked && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -360,9 +359,9 @@ export default function BankAccount({ clientId }: { clientId: number }) {
             </div>
 
             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
-              <strong className="text-foreground">How it works:</strong> Each time a lead is closed ($250 fee) or an OOC penalty ($40) 
-              is charged, the affected territory's balance decreases. When it dips below $400, an ACH debit for your 
-              replenish amount is automatically initiated from your linked bank account.
+              <strong className="text-foreground">How it works:</strong> Each time a lead is closed ($250 fee) or an OOC penalty ($25)
+              is charged, the affected territory's balance decreases. When it dips below $400, an ACH debit for your
+              replenish amount is automatically initiated from your linked bank account via Stripe.
             </div>
           </CardContent>
         </Card>
@@ -424,7 +423,7 @@ export default function BankAccount({ clientId }: { clientId: number }) {
           <DialogHeader>
             <DialogTitle>Deposit Funds via ACH</DialogTitle>
             <DialogDescription>
-              Funds will be debited from your linked bank account via ACH and credited to the selected territory's balance.
+              Funds will be debited from your linked bank account via ACH (Stripe) and credited to the selected territory's balance.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -459,10 +458,10 @@ export default function BankAccount({ clientId }: { clientId: number }) {
                 />
               </div>
             </div>
-            {plaidStatus?.item && (
+            {stripeStatus?.item && (
               <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground flex items-center gap-2">
                 <Landmark className="w-4 h-4 text-primary flex-shrink-0" />
-                Debit from: {plaidStatus.item.institutionName} {plaidStatus.item.accountName} ••••{plaidStatus.item.accountMask}
+                Debit from: {stripeStatus.item.institutionName} {stripeStatus.item.accountName} ••••{stripeStatus.item.accountMask}
               </div>
             )}
             <div className="flex gap-2 justify-end pt-2">

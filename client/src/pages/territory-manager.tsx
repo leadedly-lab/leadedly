@@ -14,7 +14,7 @@ import { MapPin, Plus, Trash2, Building2, DollarSign, AlertTriangle, Landmark, Z
 import { useLocation } from "wouter";
 import type { Territory } from "@shared/schema";
 
-type PlaidStatus = { configured: boolean; linked: boolean; item: any | null };
+type StripeStatus = { configured: boolean; linked: boolean; item: any | null };
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
@@ -36,8 +36,8 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   const [pendingPricing, setPendingPricing] = useState<(PricingInfo | null)[]>([null]);
   const [totalOwed, setTotalOwed] = useState(0);
 
-  const { data: plaidStatus } = useQuery<PlaidStatus>({
-    queryKey: [`/api/plaid/status/${clientId}`],
+  const { data: stripeStatus } = useQuery<StripeStatus>({
+    queryKey: [`/api/stripe/status/${clientId}`],
     enabled: !!clientId,
   });
 
@@ -256,14 +256,14 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
               <p className="text-3xl font-bold text-primary tabular">${totalOwed.toLocaleString()}</p>
             </div>
 
-            {plaidStatus?.linked ? (
+            {stripeStatus?.linked ? (
               <>
                 <p className="text-sm text-muted-foreground">
                   Your bank account is linked. You can deposit now via ACH or do it later from the Bank Account page.
                 </p>
                 <div className="p-3 rounded-lg bg-muted/40 flex items-center gap-2 text-xs text-muted-foreground">
                   <Landmark className="w-4 h-4 text-primary flex-shrink-0" />
-                  {plaidStatus.item?.institutionName} ••••{plaidStatus.item?.accountMask}
+                  {stripeStatus.item?.institutionName} ••••{stripeStatus.item?.accountMask}
                 </div>
                 <div className="flex gap-2">
                   <Button

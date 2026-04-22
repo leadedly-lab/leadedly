@@ -12,6 +12,10 @@ declare module "http" {
   }
 }
 
+// Stripe webhook must receive the raw body so signature verification works.
+// Register the raw parser BEFORE the global JSON parser.
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
 app.use(
   express.json({
     verify: (req, _res, buf) => {

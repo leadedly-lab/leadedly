@@ -4,9 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Landmark, CheckCircle2, XCircle, RefreshCw, Zap, DollarSign } from "lucide-react";
+import { Landmark, CheckCircle2, XCircle, RefreshCw, Zap } from "lucide-react";
 
-type PlaidOverviewRow = {
+type StripeOverviewRow = {
   clientId: number;
   clientName: string;
   companyName: string;
@@ -19,23 +19,23 @@ type PlaidOverviewRow = {
   pendingTransfers: number;
 };
 
-export default function AdminPlaid() {
+export default function AdminStripe() {
   const { toast } = useToast();
 
-  const { data: overview = [], isLoading } = useQuery<PlaidOverviewRow[]>({
-    queryKey: ["/api/admin/plaid-overview"],
+  const { data: overview = [], isLoading } = useQuery<StripeOverviewRow[]>({
+    queryKey: ["/api/admin/stripe-overview"],
     refetchInterval: 30000,
   });
 
   const replenishMutation = useMutation({
     mutationFn: async (clientId: number) => {
-      const res = await apiRequest("POST", `/api/admin/plaid-replenish/${clientId}`, {});
+      const res = await apiRequest("POST", `/api/admin/stripe-replenish/${clientId}`, {});
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       return data;
     },
     onSuccess: (data, clientId) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/plaid-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stripe-overview"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats/admin"] });
       toast({
         title: "Replenish triggered",
@@ -53,9 +53,9 @@ export default function AdminPlaid() {
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-xl font-bold font-display text-foreground">ACH / Plaid Overview</h1>
+        <h1 className="text-xl font-bold font-display text-foreground">ACH / Stripe Overview</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
-          Monitor client bank account links, auto-replenish settings, and ACH deposit history.
+          Monitor client bank account links, auto-replenish settings, and Stripe ACH deposit history.
         </p>
       </div>
 
