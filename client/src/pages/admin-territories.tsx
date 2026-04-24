@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,8 @@ export default function AdminTerritories() {
   const [addOpen, setAddOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
-  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", city: "", entireState: false });
+  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", county: "", entireState: false });
+  const [counties, setCounties] = useState<Array<{ county: string; population: number; price: number; tier: string }>>([]);
   const [deleteTarget, setDeleteTarget] = useState<Territory | null>(null);
   const [pricingInfo, setPricingInfo] = useState<{ population: number | null; price: number; tier: string } | null>(null);
 
@@ -80,16 +81,29 @@ export default function AdminTerritories() {
     },
   });
 
-  // Fetch pricing when city/state changes
-  const fetchPricing = async (state: string, city: string, entireState: boolean) => {
+  // Fetch pricing when county/state changes
+  const fetchPricing = async (state: string, county: string, entireState: boolean) => {
     if (!state) { setPricingInfo(null); return; }
-    if (!entireState && !city.trim()) { setPricingInfo(null); return; }
+    if (!entireState && !county.trim()) { setPricingInfo(null); return; }
     try {
-      const cityParam = entireState ? "Statewide" : city.trim();
-      const res = await fetch(`/api/territory-pricing?state=${state}&city=${encodeURIComponent(cityParam)}`);
+      const url = entireState
+        ? `/api/territory-pricing?state=${state}&territoryType=statewide`
+        : `/api/territory-pricing?state=${state}&county=${encodeURIComponent(county.trim())}`;
+      const res = await fetch(url);
       if (res.ok) setPricingInfo(await res.json());
     } catch { /* ignore */ }
   };
+
+  // Fetch counties when state changes
+  useEffect(() => {
+    if (!newTerritory.state) { setCounties([]); return; }
+    let cancelled = false;
+    fetch(`/api/counties?state=${newTerritory.state}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (!cancelled) setCounties(data); })
+      .catch(() => { if (!cancelled) setCounties([]); });
+    return () => { cancelled = true; };
+  }, [newTerritory.state]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof newTerritory) => {
@@ -97,17 +111,25 @@ export default function AdminTerritories() {
         clientId: Number(data.clientId),
         industryId: Number(data.industryId),
         state: data.state,
-        city: data.entireState ? "Statewide" : data.city,
+        county: data.entireState ? "" : data.county,
+        territoryType: data.entireState ? "statewide" : "county",
         depositBalance: 0,
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to create territory" }));
+        throw new Error(err.error || "Failed to create territory");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
       setAddOpen(false);
-      setNewTerritory({ clientId: "", industryId: "", state: "", city: "", entireState: false });
+      setNewTerritory({ clientId: "", industryId: "", state: "", county: "", entireState: false });
       setPricingInfo(null);
-      toast({ title: "Territory created", description: "Price set automatically based on city population." });
+      toast({ title: "Territory created", description: "Price set automatically based on county population." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -147,7 +169,7 @@ export default function AdminTerritories() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                      <span className="font-medium text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : `${t.city}, ${t.state}`}</span>
+                      <span className="font-medium text-foreground">{t.territoryType === "statewide" || t.city === "Statewide" ? `${t.state} — Entire State` : `${t.county || t.city}, ${t.state}`}</span>
                     </div>
                     <Badge variant={t.active ? "default" : "secondary"} className="text-xs mt-0.5">{t.active ? "Active" : "Paused"}</Badge>
                     {t.excludedCities && (() => { try { const cities = JSON.parse(t.excludedCities) as string[]; return cities.length > 0 ? <p className="text-xs text-amber-400 mt-0.5">Excluded: {cities.join(", ")}</p> : null; } catch { return null; } })()}
@@ -197,7 +219,7 @@ export default function AdminTerritories() {
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Territory: <span className="font-medium text-foreground">{depositOpen.city === "Statewide" ? `${depositOpen.state} — Entire State` : `${depositOpen.city}, ${depositOpen.state}`}</span><br />
+                Territory: <span className="font-medium text-foreground">{(depositOpen.territoryType === "statewide" || depositOpen.city === "Statewide") ? `${depositOpen.state} — Entire State` : `${depositOpen.county || depositOpen.city}, ${depositOpen.state}`}</span><br />
                 Current balance: <span className="font-bold text-primary tabular">${depositOpen.depositBalance.toFixed(2)}</span>
               </p>
               <div className="space-y-1.5">
@@ -256,7 +278,7 @@ export default function AdminTerritories() {
             </div>
             <div className="space-y-1.5">
               <Label>State</Label>
-              <Select value={newTerritory.state} onValueChange={v => { setNewTerritory(f => ({ ...f, state: v })); fetchPricing(v, newTerritory.city, newTerritory.entireState); }}>
+              <Select value={newTerritory.state} onValueChange={v => { setNewTerritory(f => ({ ...f, state: v, county: "" })); fetchPricing(v, "", newTerritory.entireState); }}>
                 <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                 <SelectContent>
                   {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -268,7 +290,7 @@ export default function AdminTerritories() {
                 <input
                   type="checkbox"
                   checked={newTerritory.entireState}
-                  onChange={e => { const checked = e.target.checked; setNewTerritory(f => ({ ...f, entireState: checked, city: checked ? "" : f.city })); fetchPricing(newTerritory.state, "", checked); }}
+                  onChange={e => { const checked = e.target.checked; setNewTerritory(f => ({ ...f, entireState: checked, county: checked ? "" : f.county })); fetchPricing(newTerritory.state, "", checked); }}
                   className="rounded border-border"
                 />
                 <span className="text-sm font-medium text-foreground">Entire State Territory</span>
@@ -276,13 +298,21 @@ export default function AdminTerritories() {
             </div>
             {!newTerritory.entireState && (
               <div className="space-y-1.5">
-                <Label>City</Label>
-                <Input
-                  placeholder="e.g. Austin"
-                  value={newTerritory.city}
-                  onChange={e => setNewTerritory(f => ({ ...f, city: e.target.value }))}
-                  onBlur={() => fetchPricing(newTerritory.state, newTerritory.city, newTerritory.entireState)}
-                />
+                <Label>County</Label>
+                <Select
+                  value={newTerritory.county}
+                  onValueChange={v => { setNewTerritory(f => ({ ...f, county: v })); fetchPricing(newTerritory.state, v, false); }}
+                  disabled={!newTerritory.state || counties.length === 0}
+                >
+                  <SelectTrigger><SelectValue placeholder={newTerritory.state ? "Select county" : "Select state first"} /></SelectTrigger>
+                  <SelectContent>
+                    {counties.map(c => (
+                      <SelectItem key={c.county} value={c.county}>
+                        {c.county} — ${c.price.toLocaleString()} ({c.population.toLocaleString()} pop.)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             {pricingInfo && (
@@ -300,7 +330,7 @@ export default function AdminTerritories() {
             <Button
               className="w-full"
               onClick={() => createMutation.mutate(newTerritory)}
-              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.city.trim()) || createMutation.isPending}
+              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.county) || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating…" : "Create Territory"}
             </Button>
@@ -316,7 +346,7 @@ export default function AdminTerritories() {
               <DialogTitle className="font-display">Update Monthly Stats</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">{statsOpen.city === "Statewide" ? `${statsOpen.state} — Entire State` : `${statsOpen.city}, ${statsOpen.state}`}</p>
+              <p className="text-xs text-muted-foreground">{(statsOpen.territoryType === "statewide" || statsOpen.city === "Statewide") ? `${statsOpen.state} — Entire State` : `${statsOpen.county || statsOpen.city}, ${statsOpen.state}`}</p>
               <div className="space-y-1">
                 <Label className="text-xs">Monthly Ad Spend ($)</Label>
                 <Input type="number" value={statsForm.monthlyAdSpend} onChange={e => setStatsForm(f => ({ ...f, monthlyAdSpend: e.target.value }))} />
@@ -357,7 +387,7 @@ export default function AdminTerritories() {
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteTarget ? (deleteTarget.city === "Statewide" ? `${deleteTarget.state} — Entire State` : `${deleteTarget.city}, ${deleteTarget.state}`) : ""}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteTarget ? ((deleteTarget.territoryType === "statewide" || deleteTarget.city === "Statewide") ? `${deleteTarget.state} — Entire State` : `${deleteTarget.county || deleteTarget.city}, ${deleteTarget.state}`) : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete this territory and all associated leads and deposit transactions. This action cannot be undone.
             </AlertDialogDescription>

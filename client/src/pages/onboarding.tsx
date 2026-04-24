@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -21,20 +22,28 @@ const ICON_MAP: Record<string, any> = {
 };
 
 const TEAM_OPTIONS = ["Just Me", "2–4", "5–8", "9+"];
-const CITIES_OPTIONS = ["1 City", "2–3 Cities", "4–6 Cities", "7+ Cities"];
+const CITIES_OPTIONS = ["1 County", "2–3 Counties", "4–6 Counties", "7+ Counties"];
 const SPEND_OPTIONS = ["$0 – Nothing yet", "$500 – $1,500/mo", "$1,500 – $5,000/mo", "$5,000 – $15,000/mo", "$15,000+/mo"];
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+  "VA","WA","WV","WI","WY","DC",
+];
+type CountyOption = { county: string; population: number; price: number; tier: string };
 
 const SLIDES = [
   {
     icon: MapPin,
     title: "Secure Your Territory",
-    body: "When you join Leadedly, you lock in an exclusive territory by city and industry. No competitor in your space can claim the same city — it's yours alone.",
+    body: "When you join Leadedly, you lock in an exclusive territory by county and industry. No competitor in your space can claim the same county — it's yours alone.",
     color: "hsl(217 91% 60%)",
   },
   {
     icon: DollarSign,
     title: "Deposit Your Territory Fee",
-    body: "A $2,000 deposit secures your first city. Additional cities are $1,250 each. This deposit is a working balance — it's not lost. It's used to pay success fees only when we generate closed business for you.",
+    body: "A $2,000 account minimum secures your first territory. Rural counties start at $1,000 and metros scale up to $12,000. This deposit is a working balance — it's not lost. It's used to pay success fees only when we generate closed business for you.",
     color: "hsl(38 92% 50%)",
   },
   {
@@ -63,7 +72,7 @@ const SLIDES = [
   },
 ];
 
-type Step = "industry" | "city" | "team" | "cities" | "spend" | "name" | "company" | "phone" | "title" | "email" | "slides" | "done";
+type Step = "industry" | "county" | "team" | "cities" | "spend" | "name" | "company" | "phone" | "title" | "email" | "slides" | "done";
 
 export default function OnboardingPage({ existingClient }: { existingClient?: any }) {
   const [, setLocation] = useLocation();
@@ -77,7 +86,8 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
   const [form, setForm] = useState({
     industryId: existingClient?.industryId || 0,
     industryName: "",
-    preferredCity: existingClient?.preferredCity || "",
+    preferredState: existingClient?.preferredState || "",
+    preferredCounty: existingClient?.preferredCounty || "",
     teamSize: existingClient?.teamSize || "",
     citiesServed: existingClient?.citiesServed || 1,
     monthlyLeadSpend: existingClient?.monthlyLeadSpend || "",
@@ -91,6 +101,17 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
   });
 
   const { data: industries = [] } = useQuery<Industry[]>({ queryKey: ["/api/industries"] });
+  const [counties, setCounties] = useState<CountyOption[]>([]);
+
+  useEffect(() => {
+    if (!form.preferredState) { setCounties([]); return; }
+    let cancelled = false;
+    fetch(`/api/counties?state=${form.preferredState}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: CountyOption[]) => { if (!cancelled) setCounties(data); })
+      .catch(() => { if (!cancelled) setCounties([]); });
+    return () => { cancelled = true; };
+  }, [form.preferredState]);
 
   // Pre-select industry from sessionStorage (set by landing pages before redirect)
   useEffect(() => {
@@ -104,13 +125,13 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
       const ind = industries.find(i => i.id === preselectId);
       if (ind) {
         setForm(f => ({ ...f, industryId: ind.id, industryName: ind.name }));
-        setStep("city"); // skip past the industry selection step
+        setStep("county"); // skip past the industry selection step
         try { sessionStorage.removeItem("preselectIndustryId"); } catch {}
       }
     }
   }, [industries]);
 
-  const stepOrder: Step[] = ["industry", "city", "team", "cities", "spend", "name", "company", "phone", "title", "email", "slides", "done"];
+  const stepOrder: Step[] = ["industry", "county", "team", "cities", "spend", "name", "company", "phone", "title", "email", "slides", "done"];
   const stepIndex = stepOrder.indexOf(step);
   const totalSteps = 10; // questions only
 
@@ -205,28 +226,47 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
             </div>
           )}
 
-          {/* STEP: City */}
-          {step === "city" && (
+          {/* STEP: County */}
+          {step === "county" && (
             <div className="space-y-6 max-w-md">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Step 2 of 10</p>
-                <h1 className="text-2xl font-bold font-display text-foreground">What is your preferred exclusive territory?</h1>
-                <p className="text-muted-foreground text-sm mt-1">Enter the primary city you want to own for {form.industryName}.</p>
+                <h1 className="text-2xl font-bold font-display text-foreground">What county do you want to serve?</h1>
+                <p className="text-muted-foreground text-sm mt-1">Pick the primary county you want to own for {form.industryName}.</p>
               </div>
-              <div className="space-y-1.5">
-                <Label>City name</Label>
-                <Input
-                  data-testid="input-city"
-                  placeholder="e.g. Jacksonville, FL"
-                  value={form.preferredCity}
-                  onChange={e => setForm(f => ({ ...f, preferredCity: e.target.value }))}
-                  className="h-11"
-                  autoFocus
-                />
+              <div className="grid grid-cols-[8rem_1fr] gap-3">
+                <div className="space-y-1.5">
+                  <Label>State</Label>
+                  <Select value={form.preferredState} onValueChange={v => setForm(f => ({ ...f, preferredState: v, preferredCounty: "" }))}>
+                    <SelectTrigger data-testid="select-state"><SelectValue placeholder="State" /></SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>County</Label>
+                  <Select
+                    value={form.preferredCounty}
+                    onValueChange={v => setForm(f => ({ ...f, preferredCounty: v }))}
+                    disabled={!form.preferredState || counties.length === 0}
+                  >
+                    <SelectTrigger data-testid="select-county">
+                      <SelectValue placeholder={form.preferredState ? "Select county" : "Pick state first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {counties.map(c => (
+                        <SelectItem key={c.county} value={c.county}>
+                          {c.county} — ${c.price.toLocaleString()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={back}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
-                <Button onClick={() => next()} disabled={!form.preferredCity.trim()}>
+                <Button onClick={() => next()} disabled={!form.preferredState || !form.preferredCounty}>
                   Continue <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
@@ -264,18 +304,18 @@ export default function OnboardingPage({ existingClient }: { existingClient?: an
             <div className="space-y-6">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Step 4 of 10</p>
-                <h1 className="text-2xl font-bold font-display text-foreground">How many cities do you serve?</h1>
+                <h1 className="text-2xl font-bold font-display text-foreground">How many counties do you serve?</h1>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {CITIES_OPTIONS.map((opt, i) => (
                   <button
                     key={opt}
-                    data-testid={`card-cities-${i}`}
+                    data-testid={`card-counties-${i}`}
                     className={`onboarding-card rounded-xl p-5 text-center transition-all duration-200 ${form.citiesServed === i + 1 ? "selected" : ""}`}
                     onClick={() => { setForm(f => ({ ...f, citiesServed: i + 1 })); setTimeout(() => next(), 200); }}
                   >
                     <div className="text-2xl font-bold text-primary mb-1">{opt.split(" ")[0]}</div>
-                    <div className="text-xs text-muted-foreground">cit{i === 0 ? "y" : "ies"}</div>
+                    <div className="text-xs text-muted-foreground">count{i === 0 ? "y" : "ies"}</div>
                   </button>
                 ))}
               </div>

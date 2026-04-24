@@ -65,6 +65,8 @@ export const territories = sqliteTable("territories", {
   industryId: integer("industry_id").notNull(),
   state: text("state").notNull(),
   city: text("city").notNull(),
+  county: text("county"),
+  territoryType: text("territory_type").default("county"),
   population: integer("population").notNull().default(0),
   excludedCities: text("excluded_cities"),
   depositAmount: real("deposit_amount").notNull().default(2000),

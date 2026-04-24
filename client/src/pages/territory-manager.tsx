@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,9 @@ const US_STATES = [
   "VA","WA","WV","WI","WY","DC",
 ];
 
-type TerritoryForm = { state: string; city: string };
+type TerritoryForm = { state: string; county: string };
 type PricingInfo = { population: number | null; price: number; tier: string };
+type CountyOption = { county: string; population: number; price: number; tier: string };
 
 export default function TerritoryManager({ clientId }: { clientId: number }) {
   const { auth } = useAuth();
@@ -32,9 +33,22 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   const [, navigate] = useLocation();
   const [addOpen, setAddOpen] = useState(false);
   const [depositPromptOpen, setDepositPromptOpen] = useState(false);
-  const [pendingTerritories, setPendingTerritories] = useState<TerritoryForm[]>([{ state: "", city: "" }]);
+  const [pendingTerritories, setPendingTerritories] = useState<TerritoryForm[]>([{ state: "", county: "" }]);
   const [pendingPricing, setPendingPricing] = useState<(PricingInfo | null)[]>([null]);
+  const [countiesByState, setCountiesByState] = useState<Record<string, CountyOption[]>>({});
   const [totalOwed, setTotalOwed] = useState(0);
+
+  // Load counties for a state on demand
+  async function loadCounties(state: string) {
+    if (!state || countiesByState[state]) return;
+    try {
+      const res = await fetch(`/api/counties?state=${state}`);
+      if (res.ok) {
+        const data: CountyOption[] = await res.json();
+        setCountiesByState(prev => ({ ...prev, [state]: data }));
+      }
+    } catch { /* ignore */ }
+  }
 
   const { data: stripeStatus } = useQuery<StripeStatus>({
     queryKey: [`/api/stripe/status/${clientId}`],
@@ -47,13 +61,13 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   });
 
   // Fetch pricing for a territory
-  const fetchPricingForIndex = async (index: number, state: string, city: string) => {
-    if (!state || !city.trim()) {
+  const fetchPricingForIndex = async (index: number, state: string, county: string) => {
+    if (!state || !county.trim()) {
       setPendingPricing(p => { const n = [...p]; n[index] = null; return n; });
       return;
     }
     try {
-      const res = await fetch(`/api/territory-pricing?state=${state}&city=${encodeURIComponent(city.trim())}`);
+      const res = await fetch(`/api/territory-pricing?state=${state}&county=${encodeURIComponent(county.trim())}`);
       if (res.ok) {
         const data = await res.json();
         setPendingPricing(p => { const n = [...p]; n[index] = data; return n; });
@@ -64,14 +78,19 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   const addMutation = useMutation({
     mutationFn: async (items: TerritoryForm[]) => {
       for (let i = 0; i < items.length; i++) {
-        await apiRequest("POST", "/api/territories", {
+        const res = await apiRequest("POST", "/api/territories", {
           clientId,
           industryId: auth?.user?.industryId ?? 1,
           state: items[i].state,
-          city: items[i].city,
+          county: items[i].county,
+          territoryType: "county",
           depositBalance: 0,
           active: true,
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Failed to create territory" }));
+          throw new Error(err.error || "Failed to create territory");
+        }
       }
     },
     onSuccess: () => {
@@ -81,7 +100,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
       const total = pendingPricing.reduce((sum, p) => sum + (p?.price ?? 0), 0);
       setTotalOwed(total);
       setDepositPromptOpen(true);
-      setPendingTerritories([{ state: "", city: "" }]);
+      setPendingTerritories([{ state: "", county: "" }]);
       setPendingPricing([null]);
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -92,7 +111,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   }
 
   function handleAdd() {
-    const valid = pendingTerritories.every(t => t.state && t.city.trim());
+    const valid = pendingTerritories.every(t => t.state && t.county.trim());
     if (!valid) { toast({ title: "Please fill in all territory fields", variant: "destructive" }); return; }
     addMutation.mutate(pendingTerritories);
   }
@@ -102,7 +121,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold font-display text-foreground">Territory Manager</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Manage your exclusive lead territories by city and industry.</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Manage your exclusive lead territories by county and industry.</p>
         </div>
         <Button data-testid="button-add-territory" onClick={() => setAddOpen(true)}>
           <Plus className="w-4 h-4 mr-2" /> Add Territory
@@ -118,7 +137,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <MapPin className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="font-semibold text-foreground mb-2">No territories yet</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mb-4">Secure your first exclusive city territory and start receiving leads from qualified prospects in your area.</p>
+            <p className="text-sm text-muted-foreground max-w-sm mb-4">Secure your first exclusive county territory and start receiving leads from qualified prospects in your area.</p>
             <Button onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add Your First Territory</Button>
           </CardContent>
         </Card>
@@ -133,9 +152,9 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                       <MapPin className="w-4 h-4 text-primary" />
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">{t.city === "Statewide" ? `${t.state} — Entire State` : t.city}</p>
-                      {t.city !== "Statewide" && <p className="text-xs text-muted-foreground">{t.state}</p>}
-                      {t.city === "Statewide" && t.excludedCities && (() => { try { const cities = JSON.parse(t.excludedCities) as string[]; return cities.length > 0 ? <p className="text-xs text-amber-400 mt-0.5">Excludes {cities.join(", ")} (covered by other clients)</p> : null; } catch { return null; } })()}
+                      <p className="font-semibold text-foreground">{(t.territoryType === "statewide" || t.city === "Statewide") ? `${t.state} — Entire State` : (t.county || t.city)}</p>
+                      {!(t.territoryType === "statewide" || t.city === "Statewide") && <p className="text-xs text-muted-foreground">{t.state}</p>}
+                      {(t.territoryType === "statewide" || t.city === "Statewide") && t.excludedCities && (() => { try { const names = JSON.parse(t.excludedCities) as string[]; return names.length > 0 ? <p className="text-xs text-amber-400 mt-0.5">Excludes {names.join(", ")} (covered by other clients)</p> : null; } catch { return null; } })()}
                     </div>
                   </div>
                   <Badge variant={t.active ? "default" : "secondary"} className="text-xs">
@@ -183,14 +202,14 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Pricing is based on city population. Enter a city and tab out to see the price.
+              Pricing is based on county population. Select a state, then a county to see the price. A $2,000 account minimum applies across all your territories.
             </p>
             <div className="space-y-3">
               {pendingTerritories.map((t, i) => (
                 <div key={i} className="flex gap-3 items-end">
                   <div className="w-28 space-y-1">
                     <Label className="text-xs">State</Label>
-                    <Select value={t.state} onValueChange={v => { setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, state: v } : x)); fetchPricingForIndex(i, v, t.city); }}>
+                    <Select value={t.state} onValueChange={v => { setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, state: v, county: "" } : x)); setPendingPricing(p => { const n = [...p]; n[i] = null; return n; }); loadCounties(v); }}>
                       <SelectTrigger data-testid={`select-state-${i}`}><SelectValue placeholder="State" /></SelectTrigger>
                       <SelectContent>
                         {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -198,14 +217,23 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                     </Select>
                   </div>
                   <div className="flex-1 space-y-1">
-                    <Label className="text-xs">City</Label>
-                    <Input
-                      data-testid={`input-city-${i}`}
-                      placeholder="City name"
-                      value={t.city}
-                      onChange={e => setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, city: e.target.value } : x))}
-                      onBlur={() => fetchPricingForIndex(i, t.state, t.city)}
-                    />
+                    <Label className="text-xs">County</Label>
+                    <Select
+                      value={t.county}
+                      onValueChange={v => { setPendingTerritories(p => p.map((x, idx) => idx === i ? { ...x, county: v } : x)); fetchPricingForIndex(i, t.state, v); }}
+                      disabled={!t.state || !(countiesByState[t.state]?.length)}
+                    >
+                      <SelectTrigger data-testid={`select-county-${i}`}>
+                        <SelectValue placeholder={t.state ? "Select county" : "Pick state first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(countiesByState[t.state] || []).map(c => (
+                          <SelectItem key={c.county} value={c.county}>
+                            {c.county} — ${c.price.toLocaleString()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     {pendingPricing[i] && (
                       <p className="text-xs text-primary font-medium">
                         ${pendingPricing[i]!.price.toLocaleString()} — {pendingPricing[i]!.tier}
@@ -224,10 +252,10 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setPendingTerritories(p => [...p, { state: "", city: "" }]); setPendingPricing(p => [...p, null]); }}
-              data-testid="button-add-another-city"
+              onClick={() => { setPendingTerritories(p => [...p, { state: "", county: "" }]); setPendingPricing(p => [...p, null]); }}
+              data-testid="button-add-another-county"
             >
-              <Plus className="w-4 h-4 mr-1" /> Add Another City
+              <Plus className="w-4 h-4 mr-1" /> Add Another County
             </Button>
 
             <div className="border-t border-border pt-3">
@@ -235,6 +263,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                 <span className="text-foreground">Total deposit required</span>
                 <span className="text-primary tabular">${calcTotal().toLocaleString()}</span>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Minimum $2,000 total across your account.</p>
             </div>
 
             <Button className="w-full" onClick={handleAdd} disabled={addMutation.isPending} data-testid="button-confirm-territories">

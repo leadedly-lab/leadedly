@@ -124,7 +124,7 @@ export default function LifeInsuranceLeadsLanding() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <MapPin className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-xs font-semibold">Austin, TX</span>
+                        <span className="text-xs font-semibold">Harris County, TX</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">EXCLUSIVE</span>
                       </div>
                       <span className="text-[10px] text-muted-foreground">Life Insurance</span>
@@ -133,7 +133,7 @@ export default function LifeInsuranceLeadsLanding() {
                       <div className="h-full bg-primary" style={{ width: "74%" }} />
                     </div>
                     <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>Deposit: $2,500</span>
+                      <span>Deposit: $6,000</span>
                       <span>Remaining: $1,840</span>
                     </div>
                   </div>
@@ -209,7 +209,7 @@ export default function LifeInsuranceLeadsLanding() {
               <div>
                 <h3 className="font-semibold text-base mb-1">Protected Territories</h3>
                 <p className="text-sm text-muted-foreground">
-                  Lock down a city or an entire state in your name. No other life insurance
+                  Lock down a county or an entire state in your name. No other life insurance
                   agent on our platform can touch it.
                 </p>
               </div>
@@ -235,7 +235,7 @@ export default function LifeInsuranceLeadsLanding() {
               <h3 className="font-semibold text-lg">Claim Your Territory</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Pick the city or state you want to serve. Once you claim it, no other life insurance
+              Pick the county or state you want to serve. Once you claim it, no other life insurance
               agent on Leadedly can take leads from that area.
             </p>
           </div>
@@ -293,11 +293,12 @@ export default function LifeInsuranceLeadsLanding() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-foreground">Based on population.</strong>{" "}
+                    <strong className="text-foreground">Based on county population.</strong>{" "}
                     <span className="text-muted-foreground">
-                      Deposits scale with territory size. Rural cities start at $750. Mid-size
-                      cities run $1,500–$2,500. Major metros cap at $5,000. Statewide territories
-                      range $3,500–$15,000.
+                      Deposits scale with county size. Rural counties start at $1,000. Mid-size
+                      counties run $1,500–$4,000. Major metros run $6,000–$12,000. Statewide
+                      territories range $3,500–$15,000. A $2,000 account minimum applies across
+                      all your territories.
                     </span>
                   </span>
                 </li>
@@ -343,35 +344,43 @@ export default function LifeInsuranceLeadsLanding() {
               </ul>
             </div>
             <div className="border border-border rounded-xl p-6 bg-background">
-              <h3 className="font-semibold text-base mb-4">Example Deposit Scenarios</h3>
-              <div className="space-y-4">
+              <h3 className="font-semibold text-base mb-4">County Deposit Tiers</h3>
+              <div className="space-y-3">
                 <div className="flex justify-between items-start pb-3 border-b border-border">
                   <div>
-                    <div className="font-medium text-sm">Small City (under 25K pop.)</div>
-                    <div className="text-xs text-muted-foreground">e.g., a rural market</div>
+                    <div className="font-medium text-sm">Rural County (&lt;25K pop.)</div>
                   </div>
-                  <div className="font-bold text-primary">$750 – $1,000</div>
+                  <div className="font-bold text-primary">$1,000</div>
                 </div>
                 <div className="flex justify-between items-start pb-3 border-b border-border">
                   <div>
-                    <div className="font-medium text-sm">Mid-Size City (25K–100K pop.)</div>
-                    <div className="text-xs text-muted-foreground">e.g., suburban hub</div>
+                    <div className="font-medium text-sm">Small County (25K–75K)</div>
                   </div>
-                  <div className="font-bold text-primary">$1,500 – $2,000</div>
+                  <div className="font-bold text-primary">$1,500</div>
                 </div>
                 <div className="flex justify-between items-start pb-3 border-b border-border">
                   <div>
-                    <div className="font-medium text-sm">Metro Area (100K–500K pop.)</div>
-                    <div className="text-xs text-muted-foreground">e.g., mid-market city</div>
+                    <div className="font-medium text-sm">Mid County (75K–200K)</div>
                   </div>
-                  <div className="font-bold text-primary">$2,500 – $3,000</div>
+                  <div className="font-bold text-primary">$2,500</div>
                 </div>
                 <div className="flex justify-between items-start pb-3 border-b border-border">
                   <div>
-                    <div className="font-medium text-sm">Major City (500K–1M+ pop.)</div>
-                    <div className="text-xs text-muted-foreground">e.g., top US markets</div>
+                    <div className="font-medium text-sm">Large County (200K–500K)</div>
                   </div>
-                  <div className="font-bold text-primary">$4,000 – $5,000</div>
+                  <div className="font-bold text-primary">$4,000</div>
+                </div>
+                <div className="flex justify-between items-start pb-3 border-b border-border">
+                  <div>
+                    <div className="font-medium text-sm">Major County (500K–1M)</div>
+                  </div>
+                  <div className="font-bold text-primary">$6,000</div>
+                </div>
+                <div className="flex justify-between items-start pb-3 border-b border-border">
+                  <div>
+                    <div className="font-medium text-sm">Metro/Mega County (1M+)</div>
+                  </div>
+                  <div className="font-bold text-primary">$8,500 – $12,000</div>
                 </div>
                 <div className="flex justify-between items-start">
                   <div>
@@ -381,10 +390,18 @@ export default function LifeInsuranceLeadsLanding() {
                   <div className="font-bold text-primary">$3,500 – $15,000</div>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-4 pt-4 border-t border-border">
-                Exact pricing is auto-calculated based on Census 2024 population data when you
-                select your territory.
-              </p>
+              <div className="mt-4 pt-4 border-t border-border space-y-2">
+                <p className="text-xs font-semibold text-foreground">$2,000 account minimum</p>
+                <p className="text-xs text-muted-foreground">
+                  Every Leadedly account requires at least $2,000 in total territory deposits. If you
+                  claim a single rural county, you'll need to top up to the $2,000 floor or add a
+                  second territory.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Exact pricing is auto-calculated based on Census 2024 county population data when
+                  you select your territory.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -424,7 +441,7 @@ export default function LifeInsuranceLeadsLanding() {
             <Lock className="w-6 h-6 text-primary mb-3" />
             <h3 className="font-semibold text-lg mb-2">Geographic Protection</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Once you claim a city or state, it's yours. We enforce territory exclusivity at the
+              Once you claim a county or state, it's yours. We enforce territory exclusivity at the
               platform level — no other life insurance agent on Leadedly can intrude.
             </p>
           </div>
@@ -447,7 +464,7 @@ export default function LifeInsuranceLeadsLanding() {
             Ready to Claim Your Territory?
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-            Secure your city or state before another agent locks it down. Onboarding takes about
+            Secure your county or state before another agent locks it down. Onboarding takes about
             2 minutes — you'll pick your territory, set your deposit, and start receiving exclusive
             life insurance leads.
           </p>
