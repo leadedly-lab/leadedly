@@ -139,15 +139,31 @@
 .ooc-pulse { animation: pulse-ooc 2s ease-in-out infinite; }
 
 /* ─── Onboarding step card ──────────────────────────────────────────────────── */
+/* Light mode: subtle blue tint over white card */
 .onboarding-card {
-  background: linear-gradient(135deg, hsl(217 91% 60% / 0.08) 0%, hsl(224 55% 8% / 0.95) 100%);
-  border: 1px solid hsl(217 91% 60% / 0.2);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.05) 0%, hsl(0 0% 100%) 100%);
+  border: 1px solid hsl(217 91% 60% / 0.25);
+  color: hsl(var(--foreground));
 }
 .onboarding-card:hover {
   border-color: hsl(217 91% 60% / 0.6);
-  background: linear-gradient(135deg, hsl(217 91% 60% / 0.15) 0%, hsl(224 55% 8%) 100%);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.1) 0%, hsl(0 0% 100%) 100%);
 }
 .onboarding-card.selected {
+  border-color: hsl(217 91% 60%);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.15) 0%, hsl(0 0% 100%) 100%);
+  box-shadow: 0 0 0 1px hsl(217 91% 60%), 0 4px 24px hsl(217 91% 60% / 0.15);
+}
+/* Dark mode: original deep-blue gradient for visual depth */
+.dark .onboarding-card {
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.08) 0%, hsl(224 55% 8% / 0.95) 100%);
+  border: 1px solid hsl(217 91% 60% / 0.2);
+}
+.dark .onboarding-card:hover {
+  border-color: hsl(217 91% 60% / 0.6);
+  background: linear-gradient(135deg, hsl(217 91% 60% / 0.15) 0%, hsl(224 55% 8%) 100%);
+}
+.dark .onboarding-card.selected {
   border-color: hsl(217 91% 60%);
   background: linear-gradient(135deg, hsl(217 91% 60% / 0.25) 0%, hsl(224 55% 8%) 100%);
   box-shadow: 0 0 0 1px hsl(217 91% 60%), 0 4px 24px hsl(217 91% 60% / 0.2);
