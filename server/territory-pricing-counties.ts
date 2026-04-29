@@ -1,7 +1,6 @@
 // County population data from U.S. Census Bureau Vintage 2024 estimates
 // JSON is inlined at build time by esbuild
 import countyData from "./county-populations.json";
-import { getTerritoryPrice as getCityTerritoryPrice } from "./territory-pricing";
 
 export type CountyRecord = {
   county: string;
@@ -15,16 +14,9 @@ const COUNTIES: CountyRecord[] = (countyData as { counties: CountyRecord[] }).co
 // Account-level minimum deposit per client across all territories
 export const ACCOUNT_MIN_DEPOSIT = 2000;
 
-// Pricing tiers for county-based territories (Census Vintage 2024)
-const COUNTY_TIERS = [
-  { min: 2_000_000, label: "Mega County (2M+)", price: 12000 },
-  { min: 1_000_000, label: "Metro County (1M–2M)", price: 8500 },
-  { min: 500_000, label: "Major County (500K–1M)", price: 6000 },
-  { min: 200_000, label: "Large County (200K–500K)", price: 4000 },
-  { min: 75_000, label: "Mid County (75K–200K)", price: 2500 },
-  { min: 25_000, label: "Small County (25K–75K)", price: 1500 },
-  { min: 0, label: "Rural County (<25K)", price: 1000 },
-];
+// Flat-rate pricing: $2,000 first territory, $1,200 each additional
+export const FIRST_TERRITORY_PRICE = 2000;
+export const ADDITIONAL_TERRITORY_PRICE = 1200;
 
 function normalizeCounty(name: string): string {
   return name.trim().toLowerCase().replace(/\s+county$/, "").replace(/\s+parish$/, "");
@@ -47,29 +39,29 @@ export function getCountiesByState(state: string): CountyRecord[] {
     .sort((a, b) => a.county.localeCompare(b.county));
 }
 
-export function getCountyPrice(county: string, state: string): {
+// Flat-rate county pricing.
+// `existingCount` = number of territories the client already owns.
+// `offset` = position within a multi-territory batch (0-indexed).
+export function getCountyPrice(
+  county: string,
+  state: string,
+  existingCount = 0,
+  offset = 0,
+): {
   population: number | null;
   price: number;
   tier: string;
 } {
   const pop = getCountyPopulation(county, state);
-  if (pop === null) {
-    // County not found — default to mid-small tier
-    return { population: null, price: 1500, tier: "Default (county not in database)" };
-  }
-  for (const tier of COUNTY_TIERS) {
-    if (pop >= tier.min) {
-      return { population: pop, price: tier.price, tier: tier.label };
-    }
-  }
-  return { population: pop, price: 1000, tier: "Rural County (<25K)" };
-}
-
-// Statewide pricing — delegates to existing city-pricing module for compat
-export function getStatewidePrice(state: string) {
-  return getCityTerritoryPrice("Statewide", state);
+  const isFirst = existingCount + offset === 0;
+  const price = isFirst ? FIRST_TERRITORY_PRICE : ADDITIONAL_TERRITORY_PRICE;
+  const tier = isFirst ? "First territory" : "Additional territory";
+  return { population: pop, price, tier };
 }
 
 export function getCountyPricingTiers() {
-  return COUNTY_TIERS;
+  return [
+    { label: "First territory", price: FIRST_TERRITORY_PRICE, min: 0 },
+    { label: "Each additional territory", price: ADDITIONAL_TERRITORY_PRICE, min: 0 },
+  ];
 }

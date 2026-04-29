@@ -38,11 +38,12 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
   const [countiesByState, setCountiesByState] = useState<Record<string, CountyOption[]>>({});
   const [totalOwed, setTotalOwed] = useState(0);
 
-  // Load counties for a state on demand
+  // Load counties for a state on demand. Pricing returned for the dropdown is
+  // contextual to the client (first vs additional).
   async function loadCounties(state: string) {
     if (!state || countiesByState[state]) return;
     try {
-      const res = await fetch(`/api/counties?state=${state}`);
+      const res = await fetch(`/api/counties?state=${state}&clientId=${clientId}`);
       if (res.ok) {
         const data: CountyOption[] = await res.json();
         setCountiesByState(prev => ({ ...prev, [state]: data }));
@@ -60,14 +61,17 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
     enabled: !!clientId,
   });
 
-  // Fetch pricing for a territory
+  // Fetch pricing for a territory. `index` is the position within the current
+  // batch — used as offset so additional rows in the batch get the $1,200 rate.
   const fetchPricingForIndex = async (index: number, state: string, county: string) => {
     if (!state || !county.trim()) {
       setPendingPricing(p => { const n = [...p]; n[index] = null; return n; });
       return;
     }
     try {
-      const res = await fetch(`/api/territory-pricing?state=${state}&county=${encodeURIComponent(county.trim())}`);
+      const res = await fetch(
+        `/api/territory-pricing?state=${state}&county=${encodeURIComponent(county.trim())}&clientId=${clientId}&offset=${index}`,
+      );
       if (res.ok) {
         const data = await res.json();
         setPendingPricing(p => { const n = [...p]; n[index] = data; return n; });
@@ -202,7 +206,10 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Pricing is based on county population. Select a state, then a county to see the price. A $2,000 account minimum applies across all your territories.
+              Flat-rate pricing: <span className="font-medium text-foreground">$2,000 for your
+              first territory</span> and <span className="font-medium text-foreground">$1,200
+              for each additional territory</span>. A $2,000 account minimum applies across all
+              your territories.
             </p>
             <div className="space-y-3">
               {pendingTerritories.map((t, i) => (
@@ -242,7 +249,15 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                     )}
                   </div>
                   {i > 0 && (
-                    <Button size="icon" variant="ghost" onClick={() => { setPendingTerritories(p => p.filter((_, idx) => idx !== i)); setPendingPricing(p => p.filter((_, idx) => idx !== i)); }}>
+                    <Button size="icon" variant="ghost" onClick={() => {
+                      const remaining = pendingTerritories.filter((_, idx) => idx !== i);
+                      setPendingTerritories(remaining);
+                      setPendingPricing(p => p.filter((_, idx) => idx !== i));
+                      // Re-fetch pricing so offsets line up after the shift
+                      remaining.forEach((row, idx) => {
+                        if (row.state && row.county) fetchPricingForIndex(idx, row.state, row.county);
+                      });
+                    }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   )}
@@ -263,7 +278,7 @@ export default function TerritoryManager({ clientId }: { clientId: number }) {
                 <span className="text-foreground">Total deposit required</span>
                 <span className="text-primary tabular">${calcTotal().toLocaleString()}</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Minimum $2,000 total across your account.</p>
+              <p className="text-xs text-muted-foreground mt-1">$2,000 for your first territory, $1,200 for each additional. Minimum $2,000 total per account.</p>
             </div>
 
             <Button className="w-full" onClick={handleAdd} disabled={addMutation.isPending} data-testid="button-confirm-territories">

@@ -43,7 +43,7 @@ const SLIDES = [
   {
     icon: DollarSign,
     title: "Deposit Your Territory Fee",
-    body: "A $2,000 account minimum secures your first territory. Rural counties start at $1,000 and metros scale up to $12,000. This deposit is a working balance — it's not lost. It's used to pay success fees only when we generate closed business for you.",
+    body: "Flat-rate pricing: $2,000 secures your first territory and each additional territory is just $1,200. This deposit is a working balance — it's not lost. It's used to pay success fees only when we generate closed business for you.",
     color: "hsl(38 92% 50%)",
   },
   {

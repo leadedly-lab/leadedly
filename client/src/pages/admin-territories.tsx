@@ -30,7 +30,7 @@ export default function AdminTerritories() {
   const [addOpen, setAddOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [statsForm, setStatsForm] = useState({ monthlyAdSpend: "", monthlyLeadsGenerated: "", monthlyLeadRevenue: "" });
-  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", county: "", entireState: false });
+  const [newTerritory, setNewTerritory] = useState({ clientId: "", industryId: "", state: "", county: "" });
   const [counties, setCounties] = useState<Array<{ county: string; population: number; price: number; tier: string }>>([]);
   const [deleteTarget, setDeleteTarget] = useState<Territory | null>(null);
   const [pricingInfo, setPricingInfo] = useState<{ population: number | null; price: number; tier: string } | null>(null);
@@ -81,29 +81,29 @@ export default function AdminTerritories() {
     },
   });
 
-  // Fetch pricing when county/state changes
-  const fetchPricing = async (state: string, county: string, entireState: boolean) => {
-    if (!state) { setPricingInfo(null); return; }
-    if (!entireState && !county.trim()) { setPricingInfo(null); return; }
+  // Fetch pricing when county/state changes (contextual to selected client)
+  const fetchPricing = async (state: string, county: string, clientId: string) => {
+    if (!state || !county.trim()) { setPricingInfo(null); return; }
     try {
-      const url = entireState
-        ? `/api/territory-pricing?state=${state}&territoryType=statewide`
-        : `/api/territory-pricing?state=${state}&county=${encodeURIComponent(county.trim())}`;
-      const res = await fetch(url);
+      const params = new URLSearchParams({ state, county: county.trim() });
+      if (clientId) params.set("clientId", clientId);
+      const res = await fetch(`/api/territory-pricing?${params}`);
       if (res.ok) setPricingInfo(await res.json());
     } catch { /* ignore */ }
   };
 
-  // Fetch counties when state changes
+  // Fetch counties when state or client changes (price depends on client)
   useEffect(() => {
     if (!newTerritory.state) { setCounties([]); return; }
     let cancelled = false;
-    fetch(`/api/counties?state=${newTerritory.state}`)
+    const params = new URLSearchParams({ state: newTerritory.state });
+    if (newTerritory.clientId) params.set("clientId", newTerritory.clientId);
+    fetch(`/api/counties?${params}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => { if (!cancelled) setCounties(data); })
       .catch(() => { if (!cancelled) setCounties([]); });
     return () => { cancelled = true; };
-  }, [newTerritory.state]);
+  }, [newTerritory.state, newTerritory.clientId]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof newTerritory) => {
@@ -111,8 +111,8 @@ export default function AdminTerritories() {
         clientId: Number(data.clientId),
         industryId: Number(data.industryId),
         state: data.state,
-        county: data.entireState ? "" : data.county,
-        territoryType: data.entireState ? "statewide" : "county",
+        county: data.county,
+        territoryType: "county",
         depositBalance: 0,
       });
       if (!res.ok) {
@@ -124,9 +124,9 @@ export default function AdminTerritories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/territories"] });
       setAddOpen(false);
-      setNewTerritory({ clientId: "", industryId: "", state: "", county: "", entireState: false });
+      setNewTerritory({ clientId: "", industryId: "", state: "", county: "" });
       setPricingInfo(null);
-      toast({ title: "Territory created", description: "Price set automatically based on county population." });
+      toast({ title: "Territory created", description: "Flat-rate pricing applied (first $2,000 / additional $1,200)." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -278,7 +278,7 @@ export default function AdminTerritories() {
             </div>
             <div className="space-y-1.5">
               <Label>State</Label>
-              <Select value={newTerritory.state} onValueChange={v => { setNewTerritory(f => ({ ...f, state: v, county: "" })); fetchPricing(v, "", newTerritory.entireState); }}>
+              <Select value={newTerritory.state} onValueChange={v => { setNewTerritory(f => ({ ...f, state: v, county: "" })); setPricingInfo(null); }}>
                 <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                 <SelectContent>
                   {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -286,51 +286,35 @@ export default function AdminTerritories() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newTerritory.entireState}
-                  onChange={e => { const checked = e.target.checked; setNewTerritory(f => ({ ...f, entireState: checked, county: checked ? "" : f.county })); fetchPricing(newTerritory.state, "", checked); }}
-                  className="rounded border-border"
-                />
-                <span className="text-sm font-medium text-foreground">Entire State Territory</span>
-              </label>
+              <Label>County</Label>
+              <Select
+                value={newTerritory.county}
+                onValueChange={v => { setNewTerritory(f => ({ ...f, county: v })); fetchPricing(newTerritory.state, v, newTerritory.clientId); }}
+                disabled={!newTerritory.state || counties.length === 0}
+              >
+                <SelectTrigger><SelectValue placeholder={newTerritory.state ? "Select county" : "Select state first"} /></SelectTrigger>
+                <SelectContent>
+                  {counties.map(c => (
+                    <SelectItem key={c.county} value={c.county}>
+                      {c.county} — ${c.price.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {!newTerritory.entireState && (
-              <div className="space-y-1.5">
-                <Label>County</Label>
-                <Select
-                  value={newTerritory.county}
-                  onValueChange={v => { setNewTerritory(f => ({ ...f, county: v })); fetchPricing(newTerritory.state, v, false); }}
-                  disabled={!newTerritory.state || counties.length === 0}
-                >
-                  <SelectTrigger><SelectValue placeholder={newTerritory.state ? "Select county" : "Select state first"} /></SelectTrigger>
-                  <SelectContent>
-                    {counties.map(c => (
-                      <SelectItem key={c.county} value={c.county}>
-                        {c.county} — ${c.price.toLocaleString()} ({c.population.toLocaleString()} pop.)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             {pricingInfo && (
               <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-1">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Territory Deposit</span>
                   <span className="text-xl font-bold text-primary tabular">${pricingInfo.price.toLocaleString()}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {pricingInfo.tier}
-                  {pricingInfo.population ? ` — Population: ${pricingInfo.population.toLocaleString()}` : ""}
-                </p>
+                <p className="text-xs text-muted-foreground">{pricingInfo.tier}</p>
               </div>
             )}
             <Button
               className="w-full"
               onClick={() => createMutation.mutate(newTerritory)}
-              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || (!newTerritory.entireState && !newTerritory.county) || createMutation.isPending}
+              disabled={!newTerritory.clientId || !newTerritory.industryId || !newTerritory.state || !newTerritory.county || createMutation.isPending}
             >
               {createMutation.isPending ? "Creating…" : "Create Territory"}
             </Button>

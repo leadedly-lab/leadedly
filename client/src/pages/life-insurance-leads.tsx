@@ -130,11 +130,11 @@ export default function LifeInsuranceLeadsLanding() {
                       <span className="text-[10px] text-muted-foreground">Life Insurance</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: "74%" }} />
+                      <div className="h-full bg-primary" style={{ width: "76%" }} />
                     </div>
                     <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>Deposit: $6,000</span>
-                      <span>Remaining: $1,840</span>
+                      <span>Deposit: $2,000</span>
+                      <span>Remaining: $1,520</span>
                     </div>
                   </div>
 
@@ -293,12 +293,11 @@ export default function LifeInsuranceLeadsLanding() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-foreground">Based on county population.</strong>{" "}
+                    <strong className="text-foreground">Flat, predictable pricing.</strong>{" "}
                     <span className="text-muted-foreground">
-                      Deposits scale with county size. Rural counties start at $1,000. Mid-size
-                      counties run $1,500–$4,000. Major metros run $6,000–$12,000. Statewide
-                      territories range $3,500–$15,000. A $2,000 account minimum applies across
-                      all your territories.
+                      $2,000 secures your first territory and each additional territory is just
+                      $1,200 — no matter the county. A $2,000 account minimum applies across all
+                      your territories.
                     </span>
                   </span>
                 </li>
@@ -344,62 +343,32 @@ export default function LifeInsuranceLeadsLanding() {
               </ul>
             </div>
             <div className="border border-border rounded-xl p-6 bg-background">
-              <h3 className="font-semibold text-base mb-4">County Deposit Tiers</h3>
+              <h3 className="font-semibold text-base mb-4">Flat-Rate Territory Pricing</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-start pb-3 border-b border-border">
                   <div>
-                    <div className="font-medium text-sm">Rural County (&lt;25K pop.)</div>
+                    <div className="font-medium text-sm">First Territory</div>
+                    <div className="text-xs text-muted-foreground">any county, exclusive to you</div>
                   </div>
-                  <div className="font-bold text-primary">$1,000</div>
-                </div>
-                <div className="flex justify-between items-start pb-3 border-b border-border">
-                  <div>
-                    <div className="font-medium text-sm">Small County (25K–75K)</div>
-                  </div>
-                  <div className="font-bold text-primary">$1,500</div>
-                </div>
-                <div className="flex justify-between items-start pb-3 border-b border-border">
-                  <div>
-                    <div className="font-medium text-sm">Mid County (75K–200K)</div>
-                  </div>
-                  <div className="font-bold text-primary">$2,500</div>
-                </div>
-                <div className="flex justify-between items-start pb-3 border-b border-border">
-                  <div>
-                    <div className="font-medium text-sm">Large County (200K–500K)</div>
-                  </div>
-                  <div className="font-bold text-primary">$4,000</div>
-                </div>
-                <div className="flex justify-between items-start pb-3 border-b border-border">
-                  <div>
-                    <div className="font-medium text-sm">Major County (500K–1M)</div>
-                  </div>
-                  <div className="font-bold text-primary">$6,000</div>
-                </div>
-                <div className="flex justify-between items-start pb-3 border-b border-border">
-                  <div>
-                    <div className="font-medium text-sm">Metro/Mega County (1M+)</div>
-                  </div>
-                  <div className="font-bold text-primary">$8,500 – $12,000</div>
+                  <div className="font-bold text-primary">$2,000</div>
                 </div>
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="font-medium text-sm">Statewide Territory</div>
-                    <div className="text-xs text-muted-foreground">entire state exclusivity</div>
+                    <div className="font-medium text-sm">Each Additional Territory</div>
+                    <div className="text-xs text-muted-foreground">stack as many counties as you want</div>
                   </div>
-                  <div className="font-bold text-primary">$3,500 – $15,000</div>
+                  <div className="font-bold text-primary">$1,200</div>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-border space-y-2">
                 <p className="text-xs font-semibold text-foreground">$2,000 account minimum</p>
                 <p className="text-xs text-muted-foreground">
-                  Every Leadedly account requires at least $2,000 in total territory deposits. If you
-                  claim a single rural county, you'll need to top up to the $2,000 floor or add a
-                  second territory.
+                  Every Leadedly account requires at least $2,000 in total territory deposits.
+                  Your first territory satisfies the minimum on its own.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Exact pricing is auto-calculated based on Census 2024 county population data when
-                  you select your territory.
+                  Same flat rate whether you pick a rural county or a major metro — no
+                  population-based pricing.
                 </p>
               </div>
             </div>

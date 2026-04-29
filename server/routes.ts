@@ -7,7 +7,6 @@ import { storage, sqlite } from "./storage";
 import { getTerritoryPrice, getCityPopulation, getPricingTiers } from "./territory-pricing";
 import {
   getCountyPrice,
-  getStatewidePrice,
   getCountiesByState,
   getCountyPricingTiers,
   ACCOUNT_MIN_DEPOSIT,
@@ -408,68 +407,41 @@ export function registerRoutes(httpServer: Server, app: Express) {
     try {
       const { clientId, industryId, state, city, county, territoryType } = req.body;
 
-      // Determine territory type. Backward compat: if client sends `city === "Statewide"` treat as statewide.
+      // County-only territories. Statewide creation has been disabled.
       const requestedCity = (city || "").trim();
       const requestedCounty = (county || "").trim();
-      const type: "county" | "statewide" =
-        territoryType === "statewide" || requestedCity === "Statewide"
-          ? "statewide"
-          : "county";
-      const isStatewide = type === "statewide";
+      if (territoryType === "statewide" || requestedCity === "Statewide") {
+        return res.status(400).json({
+          error: "Statewide territories are no longer available. Please select a county.",
+        });
+      }
+      const type: "county" = "county";
+      const isStatewide = false;
+
+      if (!requestedCounty) {
+        return res.status(400).json({ error: "county is required" });
+      }
 
       const allTerritories = storage.getTerritories();
       const sameIndustry = allTerritories.filter(
         t => t.industryId === Number(industryId) && t.clientId !== Number(clientId),
       );
 
-      const industry = storage.getIndustries().find(i => i.id === Number(industryId));
-      const industryName = industry?.name ?? "this industry";
-
-      // Exclusivity checks
+      // Exclusivity check: same county+industry already claimed by another client?
       for (const existing of sameIndustry) {
         if (existing.state !== state) continue;
-        const existingIsStatewide =
-          existing.territoryType === "statewide" || existing.city === "Statewide";
-
-        if (isStatewide && existingIsStatewide) {
+        const existingKey = (existing.county || existing.city || "").toLowerCase();
+        const requestedKey = requestedCounty.toLowerCase();
+        if (existingKey && existingKey === requestedKey) {
           return res.status(409).json({
-            error: `${state} is already claimed as a statewide territory by another client in ${industryName}.`,
+            error: `${requestedCounty}, ${state} is already claimed by another client in this industry.`,
           });
         }
-        if (!isStatewide && existingIsStatewide) {
-          return res.status(409).json({
-            error: `A statewide territory already exists for ${industryName} in ${state}. Individual county territories are not available.`,
-          });
-        }
-        if (!isStatewide && !existingIsStatewide) {
-          // Compare by county name if present, else fall back to city name (legacy)
-          const existingKey = (existing.county || existing.city || "").toLowerCase();
-          const requestedKey = (requestedCounty || requestedCity || "").toLowerCase();
-          if (existingKey && requestedKey && existingKey === requestedKey) {
-            return res.status(409).json({
-              error: `${requestedCounty || requestedCity}, ${state} is already claimed by another client in this industry.`,
-            });
-          }
-        }
       }
 
-      // For statewide purchases, carve out existing county territories (stored in excluded_cities col)
-      let excludedCities: string[] = [];
-      if (isStatewide) {
-        excludedCities = sameIndustry
-          .filter(t => t.state === state && !(t.territoryType === "statewide" || t.city === "Statewide"))
-          .map(t => t.county || t.city)
-          .filter(Boolean) as string[];
-      }
-
-      // Pricing
-      const pricing = isStatewide
-        ? getStatewidePrice(state)
-        : getCountyPrice(requestedCounty, state);
-
-      if (!isStatewide && !requestedCounty) {
-        return res.status(400).json({ error: "county is required for county-type territories" });
-      }
+      // Flat pricing: $2,000 first / $1,200 additional, contextual to this client.
+      const existingCount = storage.getTerritoriesByClient(Number(clientId)).length;
+      const pricing = getCountyPrice(requestedCounty, state, existingCount, 0);
 
       const newDepositAmount = Number(req.body.depositAmount ?? pricing.price);
 
@@ -489,31 +461,33 @@ export function registerRoutes(httpServer: Server, app: Express) {
         clientId: Number(clientId),
         industryId: Number(industryId),
         state,
-        city: isStatewide ? "Statewide" : (requestedCity || requestedCounty),
-        county: isStatewide ? null : requestedCounty,
+        city: requestedCounty,
+        county: requestedCounty,
         territoryType: type,
         depositAmount: newDepositAmount,
         depositBalance: req.body.depositBalance ?? 0,
         population: pricing.population ?? 0,
         active: req.body.active ?? true,
       };
-      if (isStatewide && excludedCities.length > 0) {
-        body.excludedCities = JSON.stringify(excludedCities);
-      }
 
       const t = storage.createTerritory(body);
-      res.json({ ...t, excludedCities, pricing });
+      res.json({ ...t, pricing });
     } catch (e) {
       res.status(400).json({ error: String(e) });
     }
   });
 
-  // List counties in a state with pricing
+  // List counties in a state with pricing.
+  // Optional `clientId` makes the price contextual ($2,000 first / $1,200 additional).
   app.get("/api/counties", (req, res) => {
     const state = String(req.query.state || "").trim();
     if (!state) return res.status(400).json({ error: "state required" });
+    const clientIdRaw = req.query.clientId ? Number(req.query.clientId) : NaN;
+    const existingCount = !isNaN(clientIdRaw)
+      ? storage.getTerritoriesByClient(clientIdRaw).length
+      : 0;
     const counties = getCountiesByState(state).map(c => {
-      const pricing = getCountyPrice(c.county, c.state);
+      const pricing = getCountyPrice(c.county, c.state, existingCount, 0);
       return {
         county: c.county,
         state: c.state,
@@ -529,21 +503,18 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json(getCountyPricingTiers());
   });
 
-  // Territory pricing lookup — supports county (new), city (legacy), or statewide
+  // Territory pricing lookup — county only.
+  // Optional `clientId` and `offset` make the price contextual.
   app.get("/api/territory-pricing", (req, res) => {
-    const { city, state, county, territoryType } = req.query;
+    const { state, county, clientId, offset } = req.query;
     if (!state) return res.status(400).json({ error: "state required" });
-    const st = String(state);
-    if (county) {
-      return res.json(getCountyPrice(String(county), st));
-    }
-    if (territoryType === "statewide" || city === "Statewide") {
-      return res.json(getStatewidePrice(st));
-    }
-    if (city) {
-      return res.json(getTerritoryPrice(String(city), st));
-    }
-    return res.json(getStatewidePrice(st));
+    if (!county) return res.status(400).json({ error: "county required" });
+    const clientIdNum = clientId ? Number(clientId) : NaN;
+    const existingCount = !isNaN(clientIdNum)
+      ? storage.getTerritoriesByClient(clientIdNum).length
+      : 0;
+    const offsetNum = offset ? Number(offset) : 0;
+    return res.json(getCountyPrice(String(county), String(state), existingCount, offsetNum));
   });
 
   app.get("/api/territory-pricing/tiers", (_req, res) => {
