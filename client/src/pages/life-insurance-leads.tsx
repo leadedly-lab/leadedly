@@ -145,7 +145,7 @@ export default function LifeInsuranceLeadsLanding() {
                     </div>
                     <div className="divide-y divide-border">
                       {[
-                        { name: "Michael R.", city: "Austin", status: "Closed", amt: "$200", color: "text-green-600" },
+                        { name: "Michael R.", city: "Austin", status: "Closed", amt: "$480", color: "text-green-600" },
                         { name: "Sarah K.", city: "Round Rock", status: "Contacted", amt: "—", color: "text-blue-600" },
                         { name: "James P.", city: "Austin", status: "New", amt: "—", color: "text-primary" },
                       ].map((lead, i) => (
@@ -185,8 +185,8 @@ export default function LifeInsuranceLeadsLanding() {
               <div>
                 <h3 className="font-semibold text-base mb-1">Pay Per Policy Sold</h3>
                 <p className="text-sm text-muted-foreground">
-                  $200 flat success fee per closed life insurance policy. Pay nothing when a
-                  lead doesn't convert.
+                  40% of the annual premium as a success fee on each closed life insurance
+                  policy. Pay nothing when a lead doesn't convert.
                 </p>
               </div>
             </div>
@@ -262,11 +262,11 @@ export default function LifeInsuranceLeadsLanding() {
           <div className="border border-border rounded-xl p-6 bg-card">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">4</div>
-              <h3 className="font-semibold text-lg">Pay $200 Per Policy Sold</h3>
+              <h3 className="font-semibold text-lg">Pay 40% Of The Annual Premium Per Policy Sold</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              When a lead buys a policy, a $200 success fee is deducted from your territory deposit.
-              No sale? No charge. Simple.
+              When a lead buys a policy, a success fee equal to 40% of the annual premium is
+              deducted from your territory deposit. No sale? No charge. Simple.
             </p>
           </div>
         </div>
@@ -307,8 +307,8 @@ export default function LifeInsuranceLeadsLanding() {
                   <span>
                     <strong className="text-foreground">Pays success fees automatically.</strong>{" "}
                     <span className="text-muted-foreground">
-                      Each closed policy deducts $200 from your deposit — no manual invoicing or
-                      chasing payments.
+                      Each closed policy deducts 40% of the annual premium from your deposit — no
+                      manual invoicing or chasing payments.
                     </span>
                   </span>
                 </li>
@@ -449,9 +449,9 @@ export default function LifeInsuranceLeadsLanding() {
             <DollarSign className="w-6 h-6 text-primary mb-3" />
             <h3 className="font-semibold text-lg mb-2">Predictable Economics</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              $200 flat success fee per policy. No tiered pricing, no surprise charges, no
-              credit card fees. If your average life policy commission is $600+, you clear a
-              meaningful margin on every close.
+              40% of the annual premium as a success fee per closed policy. No tiered pricing,
+              no surprise charges, no credit card fees. You only pay when a policy actually
+              closes — keeping the economics aligned with your wins.
             </p>
           </div>
         </div>
