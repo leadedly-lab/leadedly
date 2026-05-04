@@ -879,15 +879,27 @@ export function registerRoutes(httpServer: Server, app: Express) {
       // Fetch the FC account to get bank name + last4
       const fcAccount = await stripe.financialConnections.accounts.retrieve(financialConnectionAccountId);
 
+      // Must pass customer at PaymentMethod creation time when using Financial Connections
+      // — attaching separately after creation fails with "Failed to save bank account"
       const paymentMethod = await stripe.paymentMethods.create({
         type: "us_bank_account",
         us_bank_account: {
           financial_connections_account: financialConnectionAccountId,
         } as any,
+        billing_details: {
+          name: `${client.firstName} ${client.lastName}`,
+          email: client.email,
+        },
       });
 
+      // Attach to customer explicitly after creation
       await stripe.paymentMethods.attach(paymentMethod.id, {
         customer: client.stripeCustomerId,
+      });
+
+      // Set as default payment method on the customer
+      await stripe.customers.update(client.stripeCustomerId, {
+        invoice_settings: { default_payment_method: paymentMethod.id },
       });
 
       const bankName = fcAccount.institution_name || "Bank";
