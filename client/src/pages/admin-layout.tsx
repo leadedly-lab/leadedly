@@ -20,7 +20,8 @@ import AdminIndustries from "@/pages/admin-industries";
 import AdminPlaid from "@/pages/admin-plaid";
 import AdminMfa from "@/pages/admin-mfa";
 import AdminDataProducts from "@/pages/admin-data-products";
-import { Landmark, ShieldCheck, Database } from "lucide-react";
+import AdminSMS from "@/pages/admin-sms";
+import { Landmark, ShieldCheck, Database, MessageSquare } from "lucide-react";
 
 const NAV = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
@@ -31,6 +32,7 @@ const NAV = [
   { label: "ACH / Stripe", href: "/plaid", icon: Landmark },
   { label: "Data Products", href: "/data-products", icon: Database },
   { label: "MFA Security", href: "/mfa", icon: ShieldCheck },
+  { label: "SMS Notifications", href: "/sms", icon: MessageSquare },
 ];
 
 function ThemeToggle() {
@@ -107,6 +109,7 @@ export default function AdminLayout() {
             <Route path="/plaid" component={AdminPlaid} />
             <Route path="/data-products" component={AdminDataProducts} />
             <Route path="/mfa" component={AdminMfa} />
+            <Route path="/sms" component={AdminSMS} />
           </Switch>
         </main>
       </div>

@@ -3,6 +3,12 @@ import type { Server } from "http";
 import * as speakeasy from "speakeasy";
 import * as QRCode from "qrcode";
 import { generateOtp, sendOtpEmail, sendVerificationEmail } from "./email";
+import {
+  sendLeadWelcomeSMS,
+  sendAgentLeadAlertSMS,
+  sendLowBalanceSMS,
+  isTelnyxConfigured,
+} from "./telnyx";
 import { storage, sqlite } from "./storage";
 import { getTerritoryPrice, getCityPopulation, getPricingTiers } from "./territory-pricing";
 import {
@@ -588,14 +594,72 @@ export function registerRoutes(httpServer: Server, app: Express) {
           });
           // Trigger auto-replenish if balance dipped below $400
           checkAndAutoReplenish(territory.id, lead.clientId).catch(() => {});
+          // Send low balance SMS alert to agent
+          if (isTelnyxConfigured) {
+            const alertClient = storage.getClient(lead.clientId);
+            const refreshedTerr = storage.getTerritory(territory.id);
+            if (alertClient?.phone && refreshedTerr && refreshedTerr.depositBalance < LOW_BALANCE_THRESHOLD) {
+              sendLowBalanceSMS(
+                alertClient.phone,
+                alertClient.firstName,
+                refreshedTerr.depositBalance,
+                refreshedTerr.city
+              ).catch(() => {});
+            }
+          }
         }
       }
     }
     res.json(storage.getLeadsByClient(Number(req.params.clientId)));
   });
-  app.post("/api/leads", (req, res) => {
+  app.post("/api/leads", async (req, res) => {
     try {
       const lead = storage.createLead(req.body);
+
+      // ─── Fire SMS notifications immediately after lead is created ───────────
+      // Both messages fire simultaneously (Promise.all) — non-blocking
+      if (isTelnyxConfigured) {
+        const client   = lead.clientId ? storage.getClient(lead.clientId) : null;
+        const territory = lead.territoryId ? storage.getTerritory(lead.territoryId) : null;
+        const industry = lead.industryId ? storage.getIndustries().find((i) => i.id === lead.industryId) : null;
+        const industryName = industry?.name || "insurance";
+        const cityName = territory?.city || "your area";
+
+        const smsPromises: Promise<void>[] = [];
+
+        // 1. SMS to the consumer (the lead)
+        if (lead.phone) {
+          smsPromises.push(
+            sendLeadWelcomeSMS(
+              lead.phone,
+              lead.firstName,
+              client ? `${client.firstName} ${client.lastName}` : "Your specialist",
+              industryName
+            )
+          );
+        }
+
+        // 2. SMS to the agent (the client)
+        if (client?.phone) {
+          smsPromises.push(
+            sendAgentLeadAlertSMS(
+              client.phone,
+              client.firstName,
+              lead.firstName,
+              lead.lastName,
+              lead.phone || "Not provided",
+              cityName,
+              industryName
+            )
+          );
+        }
+
+        // Fire both in parallel — don't await so the API responds immediately
+        Promise.all(smsPromises).catch((err) =>
+          console.error("[TELNYX] SMS batch error:", err)
+        );
+      }
+
       res.json(lead);
     } catch (e) {
       res.status(400).json({ error: String(e) });
@@ -777,6 +841,31 @@ export function registerRoutes(httpServer: Server, app: Express) {
   });
   app.get("/api/transactions/territory/:territoryId", (req, res) => {
     res.json(storage.getDepositTransactionsByTerritory(Number(req.params.territoryId)));
+  });
+
+  
+  // ─── Telnyx SMS ──────────────────────────────────────────────────────────────
+
+  // GET /api/admin/telnyx-status — check if Telnyx is configured
+  app.get('/api/admin/telnyx-status', (_req, res) => {
+    res.json({ configured: isTelnyxConfigured });
+  });
+
+  // POST /api/admin/telnyx-test — send a test SMS to verify the integration
+  app.post('/api/admin/telnyx-test', async (req, res) => {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone number required' });
+    try {
+      const { sendSMS: _s, ...rest } = await import('./telnyx');
+      await rest.sendAgentLeadAlertSMS(
+        phone, 'Admin',
+        'Test', 'Lead', '(555) 555-5555',
+        'Your City', 'Life Insurance'
+      );
+      res.json({ ok: true, message: 'Test SMS sent successfully' });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // ─── Dashboard Stats ────────────────────────────────────────────────────────
