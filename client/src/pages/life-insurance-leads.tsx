@@ -34,6 +34,13 @@ export default function LifeInsuranceLeadsLanding() {
             <Button size="icon" variant="ghost" onClick={toggle}>
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
+            <Button
+              variant="ghost"
+              onClick={() => { window.location.hash = "#/"; }}
+              data-testid="nav-login-btn"
+            >
+              Log In
+            </Button>
             <Button onClick={goToOnboarding} data-testid="nav-signup-btn">
               Get Started
             </Button>
