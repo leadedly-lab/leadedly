@@ -39,3 +39,7 @@ services:
         sync: false
       - key: TELNYX_MESSAGING_PROFILE_ID
         sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_SHEETS_CALL_REQUEST_ID
+        value: 1-nF4_X7r1kdyVZVr4pu_NDA-B9jwp3MxAg8jss8SdmY

@@ -868,6 +868,27 @@ export function registerRoutes(httpServer: Server, app: Express) {
     }
   });
 
+  
+  // ─── Call Request (Life Insurance Landing Page) ──────────────────────────────
+  app.post('/api/call-request', async (req, res) => {
+    const { firstName, lastName, email, phone, page } = req.body;
+    if (!firstName || !lastName || !email || !phone) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
+    try {
+      await appendCallRequest({ firstName, lastName, email, phone, page: page || 'Life Insurance' });
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error('[CALL REQUEST]', e.message);
+      // Still return success to the user — we don't want to fail the form for a sheets error
+      res.json({ ok: true });
+    }
+  });
+
   // ─── Dashboard Stats ────────────────────────────────────────────────────────
   app.get("/api/stats/client/:clientId", (req, res) => {
     const clientId = Number(req.params.clientId);

@@ -13,7 +13,7 @@ import {
   Lock,
   Wallet,
   ArrowRight,
-} from "lucide-react";
+, Phone } from "lucide-react";
 export default function LifeInsuranceLeadsLanding() {
   const { theme, toggle } = useTheme();
 
@@ -467,6 +467,121 @@ export default function LifeInsuranceLeadsLanding() {
           </div>
         </div>
       </footer>
+    
+      {/* Request a Call Modal */}
+      {showCallModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCallModal(false); }}
+        >
+          <div className="bg-card border border-border rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            {!callSubmitted ? (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold font-display text-foreground">Request a Call</h2>
+                    <p className="text-sm text-muted-foreground mt-1">We'll reach out within one business day.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCallModal(false)}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <form
+                  className="space-y-4"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setCallSubmitting(true);
+                    setCallError('');
+                    try {
+                      const res = await fetch('/api/call-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...callForm, page: 'Life Insurance' }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+                      setCallSubmitted(true);
+                    } catch (err: any) {
+                      setCallError(err.message);
+                    } finally {
+                      setCallSubmitting(false);
+                    }
+                  }}
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">First Name</label>
+                      <input
+                        type="text" required placeholder="John"
+                        value={callForm.firstName}
+                        onChange={e => setCallForm(f => ({ ...f, firstName: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Last Name</label>
+                      <input
+                        type="text" required placeholder="Smith"
+                        value={callForm.lastName}
+                        onChange={e => setCallForm(f => ({ ...f, lastName: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Email Address</label>
+                    <input
+                      type="email" required placeholder="you@company.com"
+                      value={callForm.email}
+                      onChange={e => setCallForm(f => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Phone Number</label>
+                    <input
+                      type="tel" required placeholder="(555) 555-5555"
+                      value={callForm.phone}
+                      onChange={e => setCallForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  {callError && (
+                    <p className="text-sm text-red-400 flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      {callError}
+                    </p>
+                  )}
+                  <Button type="submit" className="w-full" disabled={callSubmitting}>
+                    {callSubmitting ? 'Submitting...' : 'Request My Call'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    No spam. We'll call once to answer your questions.
+                  </p>
+                </form>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-5 text-3xl">✓</div>
+                <h2 className="text-xl font-bold font-display text-foreground mb-2">You're all set!</h2>
+                <p className="text-muted-foreground text-sm mb-6">
+                  We received your request and will give you a call within one business day.
+                </p>
+                <Button variant="outline" onClick={() => { setShowCallModal(false); setCallSubmitted(false); setCallForm({ firstName: '', lastName: '', email: '', phone: '' }); }}>
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
