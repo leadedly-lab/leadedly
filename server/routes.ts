@@ -1084,6 +1084,19 @@ export function registerRoutes(httpServer: Server, app: Express) {
     if (!client.stripeCustomerId || !client.stripePaymentMethodId) {
       return res.status(400).json({ error: "No linked bank account. Please link a bank account first." });
     }
+
+    // Enforce minimum initial deposit — cannot pay less than the required territory deposit
+    // on a territory that has never been funded (depositBalance === 0)
+    const requestedAmount = Number(amount);
+    if (!isAutoReplenish && territory.depositBalance === 0) {
+      const requiredDeposit = territory.depositAmount || 2000;
+      if (requestedAmount < requiredDeposit) {
+        return res.status(400).json({
+          error: `The initial territory deposit for ${territory.city}, ${territory.state} is $${requiredDeposit.toLocaleString()}. You cannot pay less than the required deposit amount.`,
+        });
+      }
+    }
+
     try {
       const pi = await stripe.paymentIntents.create({
         amount: Math.round(Number(amount) * 100),

@@ -54,6 +54,12 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   const [depositOpen, setDepositOpen] = useState(false);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>("");
   const [depositAmount, setDepositAmount] = useState("1000");
+
+  // When a territory is selected, auto-fill the required deposit amount
+  // and lock it if the territory hasn't been funded yet (initial deposit)
+  const selectedTerritory = territories.find(t => t.id === Number(selectedTerritoryId));
+  const isInitialDeposit = selectedTerritory && selectedTerritory.depositBalance === 0;
+  const requiredDeposit = selectedTerritory?.depositAmount ?? 0;
   const [replenishAmount, setReplenishAmount] = useState("1000");
   const [autoReplenishEnabled, setAutoReplenishEnabled] = useState(true);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -83,10 +89,12 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   // ACH Deposit mutation
   const depositMutation = useMutation({
     mutationFn: async () => {
+      // Use the locked required amount for initial deposits, user-entered for top-ups
+      const finalAmount = isInitialDeposit ? requiredDeposit : Number(depositAmount);
       const res = await apiRequest("POST", "/api/stripe/deposit", {
         clientId,
         territoryId: Number(selectedTerritoryId),
-        amount: Number(depositAmount),
+        amount: finalAmount,
         isAutoReplenish: false,
       });
       const data = await res.json();
@@ -429,7 +437,12 @@ export default function BankAccount({ clientId }: { clientId: number }) {
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>Territory</Label>
-              <Select value={selectedTerritoryId} onValueChange={setSelectedTerritoryId}>
+              <Select value={selectedTerritoryId} onValueChange={(val) => {
+                setSelectedTerritoryId(val);
+                // Auto-set amount to the required deposit for this territory
+                const t = territories.find(t => t.id === Number(val));
+                if (t) setDepositAmount(String(t.depositBalance === 0 ? t.depositAmount : 1000));
+              }}>
                 <SelectTrigger data-testid="select-territory-deposit">
                   <SelectValue placeholder="Select territory..." />
                 </SelectTrigger>
@@ -444,19 +457,32 @@ export default function BankAccount({ clientId }: { clientId: number }) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Deposit Amount</Label>
+              <div className="flex items-center justify-between">
+                <Label>Deposit Amount</Label>
+                {isInitialDeposit && (
+                  <span className="text-xs text-primary flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Required initial deposit
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                 <Input
                   type="number"
-                  min="100"
+                  min={isInitialDeposit ? requiredDeposit : 100}
                   step="50"
-                  value={depositAmount}
-                  onChange={e => setDepositAmount(e.target.value)}
-                  className="pl-7"
+                  value={isInitialDeposit ? requiredDeposit : depositAmount}
+                  onChange={e => { if (!isInitialDeposit) setDepositAmount(e.target.value); }}
+                  readOnly={!!isInitialDeposit}
+                  className={`pl-7 ${isInitialDeposit ? "opacity-75 cursor-not-allowed bg-muted" : ""}`}
                   data-testid="input-deposit-amount"
                 />
               </div>
+              {isInitialDeposit && (
+                <p className="text-xs text-muted-foreground">
+                  The full territory deposit of <strong className="text-foreground">${requiredDeposit.toLocaleString()}</strong> is required to activate your territory and start receiving leads.
+                </p>
+              )}
             </div>
             {stripeStatus?.item && (
               <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground flex items-center gap-2">
