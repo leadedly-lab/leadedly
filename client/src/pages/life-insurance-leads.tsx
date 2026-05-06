@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LeadedlyLogo } from "@/components/logo";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/lib/theme";
@@ -18,6 +19,11 @@ import {
 } from "lucide-react";
 export default function LifeInsuranceLeadsLanding() {
   const { theme, toggle } = useTheme();
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [callForm, setCallForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [callSubmitting, setCallSubmitting] = useState(false);
+  const [callSubmitted, setCallSubmitted] = useState(false);
+  const [callError, setCallError] = useState('');
 
   function goToOnboarding() {
     // Pre-select Life Insurance (industry ID 3) via sessionStorage
