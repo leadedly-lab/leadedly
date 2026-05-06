@@ -1,4 +1,5 @@
 import { LeadedlyLogo } from "@/components/logo";
+import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import {
@@ -501,11 +502,7 @@ export default function LifeInsuranceLeadsLanding() {
                     setCallSubmitting(true);
                     setCallError('');
                     try {
-                      const res = await fetch('/api/call-request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...callForm, page: 'Life Insurance' }),
-                      });
+                      const res = await apiRequest('POST', '/api/call-request', { ...callForm, page: 'Life Insurance' });
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error || 'Something went wrong');
                       setCallSubmitted(true);
