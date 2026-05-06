@@ -13,7 +13,8 @@ import {
   Lock,
   Wallet,
   ArrowRight,
-, Phone } from "lucide-react";
+  Phone,
+} from "lucide-react";
 export default function LifeInsuranceLeadsLanding() {
   const { theme, toggle } = useTheme();
 
