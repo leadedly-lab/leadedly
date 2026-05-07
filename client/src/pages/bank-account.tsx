@@ -54,12 +54,6 @@ export default function BankAccount({ clientId }: { clientId: number }) {
   const [depositOpen, setDepositOpen] = useState(false);
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>("");
   const [depositAmount, setDepositAmount] = useState("1000");
-
-  // When a territory is selected, auto-fill the required deposit amount
-  // and lock it if the territory hasn't been funded yet (initial deposit)
-  const selectedTerritory = territories.find(t => t.id === Number(selectedTerritoryId));
-  const isInitialDeposit = selectedTerritory && selectedTerritory.depositBalance === 0;
-  const requiredDeposit = selectedTerritory?.depositAmount ?? 0;
   const [replenishAmount, setReplenishAmount] = useState("1000");
   const [autoReplenishEnabled, setAutoReplenishEnabled] = useState(true);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -76,10 +70,16 @@ export default function BankAccount({ clientId }: { clientId: number }) {
     }
   }, [stripeStatus?.item?.autoReplenishEnabled, stripeStatus?.item?.replenishAmount]);
 
+  // Territories must be declared BEFORE selectedTerritory references it
   const { data: territories = [] } = useQuery<Territory[]>({
     queryKey: [`/api/territories/client/${clientId}`],
     enabled: !!clientId,
   });
+
+  // Derived state — depends on territories being declared above
+  const selectedTerritory = territories.find(t => t.id === Number(selectedTerritoryId));
+  const isInitialDeposit = selectedTerritory && selectedTerritory.depositBalance === 0;
+  const requiredDeposit = selectedTerritory?.depositAmount ?? 0;
 
   const { data: transfers = [] } = useQuery<StripeDeposit[]>({
     queryKey: [`/api/stripe/deposits/${clientId}`],

@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wallet, TrendingDown, AlertTriangle, DollarSign, ArrowDownCircle, ArrowUpCircle, Landmark, Zap } from "lucide-react";
+import { Wallet, AlertTriangle, DollarSign, ArrowDownCircle, ArrowUpCircle, Landmark, Zap, Clock, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Territory, DepositTransaction } from "@shared/schema";
 
 type StripeStatus = { configured: boolean; linked: boolean; item: any | null };
+type StripeDeposit = { id: number; clientId: number; territoryId: number; paymentIntentId: string; amount: number; status: string; description: string; isAutoReplenish: boolean; createdAt: number };
 
 function TransactionIcon({ type }: { type: string }) {
   if (type === "deposit") return <ArrowUpCircle className="w-4 h-4 text-green-400 flex-shrink-0" />;
@@ -28,10 +29,17 @@ export default function DepositManager({ clientId }: { clientId: number }) {
     queryKey: [`/api/stripe/status/${clientId}`],
     enabled: !!clientId,
   });
+  const { data: stripeDeposits = [] } = useQuery<StripeDeposit[]>({
+    queryKey: [`/api/stripe/deposits/${clientId}`],
+    enabled: !!clientId,
+    refetchInterval: 30000,
+  });
 
-  const totalBalance = territories.reduce((s, t) => s + t.depositBalance, 0);
-  const totalDeposited = transactions.filter(t => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
-  const totalFees = transactions.filter(t => t.type !== "deposit").reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalBalance    = territories.reduce((s, t) => s + t.depositBalance, 0);
+  const totalDeposited  = transactions.filter(t => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
+  const totalFees       = transactions.filter(t => t.type !== "deposit").reduce((s, t) => s + Math.abs(t.amount), 0);
+  const pendingDeposits = stripeDeposits.filter(d => d.status === "pending" || d.status === "processing");
+  const pendingTotal    = pendingDeposits.reduce((s, d) => s + d.amount, 0);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -41,7 +49,7 @@ export default function DepositManager({ clientId }: { clientId: number }) {
       </div>
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="stat-card-blue">
           <CardContent className="p-5">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Balance</p>
@@ -54,6 +62,14 @@ export default function DepositManager({ clientId }: { clientId: number }) {
             <p className="text-2xl font-bold text-green-400 tabular">${totalDeposited.toFixed(2)}</p>
           </CardContent>
         </Card>
+        {pendingTotal > 0 && (
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">In Transit</p>
+              <p className="text-2xl font-bold text-yellow-400 tabular">${pendingTotal.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+        )}
         <Card className="stat-card-red">
           <CardContent className="p-5">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Fees Paid</p>
@@ -97,6 +113,37 @@ export default function DepositManager({ clientId }: { clientId: number }) {
         </CardContent>
       </Card>
 
+      {/* Pending ACH deposits — in transit */}
+      {pendingDeposits.length > 0 && (
+        <Card className="border-yellow-500/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="w-4 h-4 text-yellow-400" /> Deposits In Transit
+              <Badge variant="secondary" className="text-xs ml-1">{pendingDeposits.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              These deposits have been initiated and are being processed by your bank. ACH transfers typically take 1–3 business days to settle and will appear as confirmed deposits once complete.
+            </p>
+            <div className="space-y-2">
+              {pendingDeposits.map(d => (
+                <div key={d.id} className="flex items-center justify-between py-3 px-4 rounded-xl bg-muted/30 border border-yellow-500/15">
+                  <div className="flex items-center gap-3">
+                    <RefreshCw className="w-4 h-4 text-yellow-400" />
+                    <div>
+                      <p className="text-sm text-foreground font-medium">{d.description}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(d.createdAt).toLocaleDateString()} · {d.status === "processing" ? "Processing" : "Pending"}</p>
+                    </div>
+                  </div>
+                  <span className="font-bold tabular text-yellow-400">+${d.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Transaction history */}
       <Card>
         <CardHeader className="pb-3">
@@ -106,7 +153,11 @@ export default function DepositManager({ clientId }: { clientId: number }) {
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No transactions yet.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">
+              {pendingDeposits.length > 0
+                ? "Your deposit is in transit — it will appear here once it settles (1–3 business days)."
+                : "No transactions yet."}
+            </p>
           ) : (
             <div className="rounded-xl border border-border overflow-hidden">
               <table className="w-full text-sm">
