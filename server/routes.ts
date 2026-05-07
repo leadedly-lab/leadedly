@@ -889,6 +889,12 @@ export function registerRoutes(httpServer: Server, app: Express) {
     }
   });
 
+  
+  // GET /api/admin/stripe-deposits — all Stripe deposit records (including pending/processing)
+  app.get('/api/admin/stripe-deposits', (_req, res) => {
+    res.json(storage.getAllStripeDeposits());
+  });
+
   // ─── Dashboard Stats ────────────────────────────────────────────────────────
   app.get("/api/stats/client/:clientId", (req, res) => {
     const clientId = Number(req.params.clientId);
