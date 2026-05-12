@@ -7,8 +7,8 @@ import {
   sendLeadWelcomeSMS,
   sendAgentLeadAlertSMS,
   sendLowBalanceSMS,
-  isTelnyxConfigured,
-} from "./telnyx";
+  isSendBlueConfigured as isTelnyxConfigured,
+} from "./sendblue";
 import { storage, sqlite } from "./storage";
 import { getTerritoryPrice, getCityPopulation, getPricingTiers } from "./territory-pricing";
 import {
@@ -846,7 +846,7 @@ export function registerRoutes(httpServer: Server, app: Express) {
   
   // ─── Telnyx SMS ──────────────────────────────────────────────────────────────
 
-  // GET /api/admin/telnyx-status — check if Telnyx is configured
+  // GET /api/admin/telnyx-status — check if SendBlue is configured (kept same URL for compatibility)
   app.get('/api/admin/telnyx-status', (_req, res) => {
     res.json({ configured: isTelnyxConfigured });
   });

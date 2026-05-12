@@ -32,7 +32,7 @@ const NAV = [
   { label: "ACH / Stripe", href: "/plaid", icon: Landmark },
   { label: "Data Products", href: "/data-products", icon: Database },
   { label: "MFA Security", href: "/mfa", icon: ShieldCheck },
-  { label: "SMS Notifications", href: "/sms", icon: MessageSquare },
+  { label: "iMessage / SMS", href: "/sms", icon: MessageSquare },
 ];
 
 function ThemeToggle() {

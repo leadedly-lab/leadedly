@@ -33,9 +33,9 @@ export default function AdminSMS() {
   return (
     <div className="p-6 space-y-6 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-xl font-bold font-display text-foreground">SMS Notifications</h1>
+        <h1 className="text-xl font-bold font-display text-foreground">iMessage Notifications</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
-          Telnyx SMS integration — automatically texts agents and consumers when a new lead arrives.
+          SendBlue iMessage integration — automatically messages agents via iMessage and consumers when a new lead arrives.
         </p>
       </div>
 
@@ -56,12 +56,12 @@ export default function AdminSMS() {
               </div>
               <div>
                 <p className="font-semibold text-sm text-foreground">
-                  {status?.configured ? "Telnyx Connected" : "Telnyx Not Configured"}
+                  {status?.configured ? "SendBlue Connected" : "SendBlue Not Configured"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {status?.configured
-                    ? "SMS messages will fire automatically when leads come in"
-                    : "Add TELNYX_API_KEY and TELNYX_FROM_NUMBER to your environment variables"}
+                    ? "iMessages will fire automatically when leads come in"
+                    : "Add SENDBLUE_API_KEY, SENDBLUE_API_SECRET, and SENDBLUE_FROM_NUMBER to your environment variables"}
                 </p>
               </div>
             </div>
@@ -76,9 +76,9 @@ export default function AdminSMS() {
               <AlertDescription className="text-sm text-yellow-300">
                 Add these to your Render environment variables:
                 <ul className="mt-2 space-y-1 font-mono text-xs">
-                  <li><code className="bg-muted px-1 rounded">TELNYX_API_KEY</code> — from telnyx.com/account/keys</li>
-                  <li><code className="bg-muted px-1 rounded">TELNYX_FROM_NUMBER</code> — your Telnyx phone number (E.164 format: +1XXXXXXXXXX)</li>
-                  <li><code className="bg-muted px-1 rounded">TELNYX_MESSAGING_PROFILE_ID</code> — from your Telnyx messaging profile</li>
+                  <li><code className="bg-muted px-1 rounded">SENDBLUE_API_KEY</code> — from dashboard.sendblue.com</li>
+                  <li><code className="bg-muted px-1 rounded">SENDBLUE_FROM_NUMBER</code> — your SendBlue phone number (E.164 format: +1XXXXXXXXXX)</li>
+                  <li><code className="bg-muted px-1 rounded">SENDBLUE_API_SECRET</code> — from your Telnyx messaging profile</li>
                 </ul>
               </AlertDescription>
             </Alert>
